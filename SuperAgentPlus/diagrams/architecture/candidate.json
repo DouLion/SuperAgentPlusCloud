@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "SuperAgentPlus：承载边界与 G1/G2/G3",
+    "locale": "zh-CN",
+    "output": "SuperAgentPlus/diagrams/architecture/architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {"id":"member-cli","type":"backend","label":"任意 CLI 会话","sublabel":"实现·自测·发起任务","pos":[40,60],"size":[210,90]},
+    {"id":"member-human","type":"external","icon":"person","label":"CLI 操作者 A（人）","sublabel":"G1 初审、正式提交","tag":"也可承担 G2/G3","pos":[40,300],"size":[210,110]},
+    {"id":"coordination-service","type":"backend","label":"需求组织与任务协调","sublabel":"意图·分发·认领·租约·上下文","pos":[510,60],"size":[260,90]},
+    {"id":"review-orchestration","type":"backend","label":"交付验收与信息闸门","sublabel":"G1/G2 编排；G3 只发方向简报","tag":"核对签署，不替人决定","pos":[510,300],"size":[260,110]},
+    {"id":"rules-engineering","type":"security","label":"规约与工程对接","sublabel":"契约决策·复验·集成发布门禁","pos":[510,535],"size":[260,90]},
+    {"id":"project-ledger","type":"database","label":"权威台账与事件发送","sublabel":"G1/G2/G3·版本·责任·Outbox","pos":[510,755],"size":[260,90]},
+    {"id":"chief-cli","type":"backend","label":"总工的 CLI 会话","sublabel":"认领·实现·发起任务","pos":[965,60],"size":[210,90]},
+    {"id":"chief-humans","type":"external","icon":"person","label":"验收人 / 总工 B…N（人）","sublabel":"G2 看实现；G3 只看简报","tag":"G3 不读日志/diff","pos":[965,300],"size":[210,110]},
+    {"id":"engineering-platform","type":"cloud","label":"仓库 / CI / 发布平台","sublabel":"代码制品·可信复验·集成部署","pos":[40,535],"size":[210,90]}
+  ],
+  "boundaries": [
+    {"kind":"region","label":"人类终端 A（成员示例：任一 CLI 可发起）","wraps":["member-cli","member-human"],"pad":24},
+    {"kind":"region","label":"中心服务器：服务承载，不替人审批","wraps":["coordination-service","review-orchestration","rules-engineering","project-ledger"],"pad":24},
+    {"kind":"region","label":"人类终端 B…N（验收人/总工示例：G2/G3）","wraps":["chief-cli","chief-humans"],"pad":24},
+    {"kind":"region","label":"受控工程设施（建议独立承载）","wraps":["engineering-platform"],"pad":24}
+  ],
+  "connections": [
+    {"id":"member-intent-claim","from":"member-cli","to":"coordination-service","label":"任意 CLI 可发起","variant":"emphasis"},
+    {"id":"member-task-grant","from":"coordination-service","to":"member-cli","label":"任务与有效租约","variant":"security"},
+    {"id":"member-local-result","from":"member-cli","to":"member-human","label":"成果与自测证据"},
+    {"id":"member-primary-submit","from":"member-human","to":"review-orchestration","label":"初审后正式提交","variant":"security"},
+    {"id":"coordination-progress","from":"coordination-service","to":"review-orchestration","label":"任务与状态关联"},
+    {"id":"chief-intent-claim","from":"chief-cli","to":"coordination-service","label":"同样可发起","variant":"emphasis"},
+    {"id":"chief-task-grant","from":"coordination-service","to":"chief-cli","label":"同样可执行任务","variant":"security"},
+    {"id":"chief-local-result","from":"chief-cli","to":"chief-humans","label":"成果也先初审"},
+    {"id":"dispatch-final-review","from":"review-orchestration","to":"chief-humans","label":"G2 验收 / G3 方向简报","variant":"dashed"},
+    {"id":"human-final-decisions","from":"chief-humans","to":"review-orchestration","label":"G2 裁决 / G3 签署","variant":"security"},
+    {"id":"verification-integration-request","from":"review-orchestration","to":"rules-engineering","label":"G2 通过后集成","variant":"security"},
+    {"id":"engineering-evidence-return","from":"rules-engineering","to":"review-orchestration","label":"工程证据与门禁结果","variant":"dashed"},
+    {"id":"engineering-authorized-operation","from":"rules-engineering","to":"engineering-platform","label":"授权工程操作","variant":"security"},
+    {"id":"engineering-observed-result","from":"engineering-platform","to":"rules-engineering","label":"可信结果回报","variant":"dashed"},
+    {"id":"persist-current-facts","from":"rules-engineering","to":"project-ledger","label":"版本与审批责任记录"}
+  ],
+  "cards": [
+    {"dot":"cyan","title":"哪些由中心服务器承载","items":["需求组织、契约版本、G1/G2/G3 编排、信息闸门与责任台账","服务器只验权、记录、发简报；不替总工看 bug，也不替验收人判实现","G3 只发一页方向简报；日志/diff 留在操作层"]},
+    {"dot":"emerald","title":"哪些由人类终端承担","items":["任何接入 CLI 都可发起；A/B 只是示例终端","G1 操作者初审、G2 独立验收、G3 总工方向/结构/里程碑裁决","G3 只看简报；需要细节走 purpose/TTL 的 detail pack，不粘回主上下文"]},
+    {"dot":"amber","title":"三层门与污染边界","items":["G1 → G2 →（仅 R2/R3/里程碑）G3；总工不是逐任务验收员","G1/G2 绑定精确候选与证据；G3 绑定 brief/方向包版本","总工上下文不含日志、diff、复现；这是硬规则，不是提示词建议"]}
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "SuperAgentPlus：G1 初审与 G2 验收的交付闭环",
+    "locale": "zh-CN",
+    "output": "SuperAgentPlus/diagrams/workflow/workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {"id":"definition","label":"意图与契约"},
+    {"id":"preparation","label":"执行与操作者初审"},
+    {"id":"verification","label":"正式提交与可信复验"},
+    {"id":"review","label":"G2 独立验收"},
+    {"id":"delivery","label":"集成与发布"},
+    {"id":"correction","label":"纠正与恢复","variant":"exception"},
+    {"id":"result","label":"真实结果观察"}
+  ],
+  "mainPath": ["intent","contract","execute","primary","evidence","final","integrated","outcome"],
+  "nodes": [
+    {"id":"intent","lane":"definition","col":0,"type":"external","label":"提出项目意图","sublabel":"任一 CLI 可发起"},
+    {"id":"contract","lane":"definition","col":1,"type":"backend","label":"工作契约与准入","sublabel":"C0·风险·有效授权"},
+    {"id":"diagnosis","lane":"preparation","col":0,"type":"backend","label":"受限诊断与澄清","sublabel":"先定义真实问题"},
+    {"id":"decision","lane":"preparation","col":1,"type":"external","icon":"person","label":"多人讨论与批准","sublabel":"只有结论可实施"},
+    {"id":"execute","lane":"preparation","col":2,"type":"backend","label":"认领·执行·自测","sublabel":"权限·依赖·有效租约"},
+    {"id":"primary","lane":"preparation","col":3,"type":"external","icon":"person","label":"CLI 操作者初审","sublabel":"看过成果再签署提交","tag":"人类第一次确认"},
+    {"id":"evidence","lane":"verification","col":4,"type":"backend","label":"正式提交与可信复验","sublabel":"绑定候选·证据·环境"},
+    {"id":"final","lane":"review","col":5,"type":"external","icon":"person","label":"G2 独立验收","sublabel":"看实现与证据","tag":"任务 ACCEPTED"},
+    {"id":"integrated","lane":"delivery","col":5,"type":"security","label":"组合验证与授权发布","sublabel":"真实基线·独立授权"},
+    {"id":"outcome","lane":"result","col":5,"type":"external","label":"观察项目结果","sublabel":"达成或明确未达成"},
+    {"id":"rework","lane":"review","col":4,"type":"backend","label":"G2 驳回与整改","sublabel":"保留每轮意见"},
+    {"id":"hold","lane":"correction","col":2,"type":"security","label":"HOLD 与重新对齐","sublabel":"冻结后重立契约或重认领"}
+  ],
+  "edges": [
+    {"id":"clear-contract","from":"intent","to":"contract","label":"C0 清晰","role":"main","variant":"emphasis"},
+    {"id":"unclear-diagnose","from":"intent","to":"diagnosis","label":"C1/C2","role":"branch","variant":"security"},
+    {"id":"diagnose-recheck","from":"diagnosis","to":"intent","label":"补证后重判","role":"return","variant":"dashed"},
+    {"id":"structural-discussion","from":"contract","to":"decision","label":"R2/R3 未批准","role":"branch","variant":"security"},
+    {"id":"confirmed-contract","from":"decision","to":"contract","label":"人类批准生效","role":"return","variant":"security"},
+    {"id":"grant-execution","from":"contract","to":"execute","label":"既定或批准授权","role":"main","variant":"security"},
+    {"id":"operator-inspect","from":"execute","to":"primary","label":"候选与自测证据","role":"main"},
+    {"id":"primary-return","from":"primary","to":"execute","label":"初审退回修改","role":"return","variant":"dashed"},
+    {"id":"primary-submit","from":"primary","to":"evidence","label":"初审签署后提交","role":"main","variant":"security"},
+    {"id":"verify-package","from":"evidence","to":"final","label":"G2 验收包","role":"main","variant":"emphasis"},
+    {"id":"final-accept","from":"final","to":"integrated","label":"G2 通过","role":"main","variant":"security"},
+    {"id":"final-reject","from":"final","to":"rework","label":"G2 驳回","role":"error","variant":"security"},
+    {"id":"retry-execution","from":"rework","to":"execute","label":"新尝试重新初审","role":"return","variant":"dashed"},
+    {"id":"delivery-outcome","from":"integrated","to":"outcome","label":"真实反馈","role":"main","variant":"emphasis"},
+    {"id":"execution-hold","from":"execute","to":"hold","label":"失效或失联","role":"error","variant":"security"}
+  ],
+  "semanticChecks": {
+    "allowedRoots": ["intent"],
+    "allowedTerminals": ["outcome", "hold"],
+    "requiredEdges": [
+      {"from":"contract","to":"decision"},
+      {"from":"decision","to":"contract"},
+      {"from":"primary","to":"evidence"},
+      {"from":"final","to":"integrated"},
+      {"from":"integrated","to":"outcome"}
+    ],
+    "requiredPaths": [
+      {"from":"intent","to":"outcome"},
+      {"from":"rework","to":"execute"}
+    ]
+  },
+  "cards": [
+    {"dot":"cyan","title":"G1 → G2，G3 另走方向简报","items":["CLI 操作者看过候选并签署 G1，才可正式提交；G1 不是开工审批","G2 验收人看实现与证据，决定任务 ACCEPTED / REWORK；G3 只在 R2/R3/里程碑出现","G3 只读一页方向简报，不看本图的日志/diff/复现"]},
+    {"dot":"rose","title":"图中条件不能由模型自行跳过","items":["没有 G1 签署，提交失败；没有 G2 结论，任务不能 ACCEPTED","候选或契约变化，旧 G1/G2 不能沿用；G3 另绑定 brief/方向包","契约、决策、租约或证据失效时，任何阶段都可加 HOLD"]},
+    {"dot":"amber","title":"绿色子任务，不代表绿色项目","items":["G2 绑定精确候选；组合版本仍需复验","发布授权与执行权分离；上线不等于业务目标达成","总工不被 bug 细节污染：方向问题才升级 G3"]}
+  ]
+}
