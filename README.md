@@ -18,18 +18,19 @@
 - [02 核心概念与原则](docs/02_核心概念与原则.md)：术语、影响等级、AI 输出地位
 - [03 总体架构](docs/03_总体架构.md)：组成、责任边界、核心流程、一期范围
 - [04 详细方案](docs/04_详细方案.md)：对象、字段、状态、变更与影响记录
+- [05 实施计划](docs/05_实施计划.md)：分层生长计划与当前进度（T0–T6 已完成）
 - [原始材料](docs/多人协作AI辅助开发的想法.md)：未修改的原始想法
 
 ## 仓库结构
 
 ```text
 docs/    设计文档
-center/  中心服务实现（待补充）
-client/  客户端实现（待补充）
+center/  中心服务实现（HTTP + SQLite，T0–T6）
+client/  客户端实现（命令行，只与 Center 交互）
 ```
 
-当前 Center 与 Client 均可运行：Center 提供 HTTP 服务与 SQLite 存储，Client 提供命令行；
-`trunk` 等命令已实现，端到端脚本可跑通完整链路。
+Center 与 Client 均已可运行：Center 提供 HTTP 服务与 SQLite 存储，Client 提供命令行；
+`trunk`、`change`、`impact` 等命令已实现，端到端脚本可跑通完整链路。
 
 ## 运行与测试
 

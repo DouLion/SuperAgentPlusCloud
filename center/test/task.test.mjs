@@ -11,6 +11,7 @@ import {
   openStore,
   createProject,
   createRequirement,
+  createTrunkItem,
   createTask,
   getTask,
   listTasks,
@@ -47,6 +48,15 @@ function seed() {
     author: 'alice',
   });
   return { project, requirement };
+}
+
+/** 建一个 proposed 主干条目，供任务关联使用。 */
+function seedItem(projectId) {
+  return createTrunkItem(db, {
+    project_id: projectId,
+    kind: 'scope',
+    statement: '任务关联用范围条目',
+  });
 }
 
 test('任务：必填校验（缺 purpose / done_when / 空数组 / 不存在项目）', () => {
@@ -125,10 +135,12 @@ test('任务：创建后默认 draft，JSON 字段往返一致，可按条件过
 
 test('任务：draft → open，非 draft 不能重复开放', () => {
   const { project } = seed();
+  const item = seedItem(project.project_id);
   const task = createTask(db, {
     project_id: project.project_id,
     purpose: '开放演示',
     done_when: ['可被查询'],
+    serves_item_ids: [item.item_id],
   });
 
   const opened = openTask(db, task.task_id);
@@ -138,12 +150,55 @@ test('任务：draft → open，非 draft 不能重复开放', () => {
   assert.throws(() => openTask(db, 'task_missing'), /任务不存在/);
 });
 
+test('任务：开放前必须指回主干——无关联抛 TASK_NOT_LINKED，待决问题可开放', () => {
+  const { project } = seed();
+  const item = seedItem(project.project_id);
+
+  // 既无 serves_item_ids 又无 related_question_id：创建允许（草稿），开放拒绝。
+  const bare = createTask(db, {
+    project_id: project.project_id,
+    purpose: '无关联任务',
+    done_when: ['缺少主干关联'],
+  });
+  assert.equal(bare.status, 'draft');
+  assert.throws(
+    () => openTask(db, bare.task_id),
+    (error) => {
+      assert.equal(error.code, 'TASK_NOT_LINKED');
+      assert.equal(error.status, 400);
+      assert.match(error.message, /必须关联主干条目/);
+      return true;
+    },
+  );
+  assert.equal(getTask(db, bare.task_id).status, 'draft');
+
+  // 探索任务以待决问题为主，可以正常开放。
+  const exploratory = createTask(db, {
+    project_id: project.project_id,
+    purpose: '探索待决问题',
+    done_when: ['给出结论或提出追问'],
+    related_question_id: 'q_探索：范围边界',
+  });
+  assert.equal(openTask(db, exploratory.task_id).status, 'open');
+
+  // 关联主干条目的执行任务同样可以开放。
+  const linked = createTask(db, {
+    project_id: project.project_id,
+    purpose: '关联主干任务',
+    done_when: ['可检验'],
+    serves_item_ids: [item.item_id],
+  });
+  assert.equal(openTask(db, linked.task_id).status, 'open');
+});
+
 test('认领：原子互斥——连续两次只有一次成功，另一次 TASK_NOT_CLAIMABLE', () => {
   const { project } = seed();
+  const item = seedItem(project.project_id);
   const task = openTask(db, createTask(db, {
     project_id: project.project_id,
     purpose: '并发认领',
     done_when: ['只有一人持有'],
+    serves_item_ids: [item.item_id],
   }).task_id);
 
   const first = claimTask(db, task.task_id, 'worker_a');
@@ -174,10 +229,12 @@ test('认领：原子互斥——连续两次只有一次成功，另一次 TASK
 
 test('认领：非 open 任务（claimed）不能再认领', () => {
   const { project } = seed();
+  const item = seedItem(project.project_id);
   const created = createTask(db, {
     project_id: project.project_id,
     purpose: '不可认领',
     done_when: ['状态校验'],
+    serves_item_ids: [item.item_id],
   });
 
   // draft 状态不可认领。
@@ -190,10 +247,12 @@ test('认领：非 open 任务（claimed）不能再认领', () => {
 
 test('释放：任务回 open 可再次被认领；非本人或非 active 抛错', () => {
   const { project } = seed();
+  const item = seedItem(project.project_id);
   const task = openTask(db, createTask(db, {
     project_id: project.project_id,
     purpose: '释放演示',
     done_when: ['释放后可再认领'],
+    serves_item_ids: [item.item_id],
   }).task_id);
 
   claimTask(db, task.task_id, 'worker_a');
@@ -225,6 +284,7 @@ test('释放：任务回 open 可再次被认领；非本人或非 active 抛错
 
 test('HTTP：批量拆解自动开放，claim 冲突返回 409 且带 code', async () => {
   const { project, requirement } = seed();
+  const item = seedItem(project.project_id);
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -238,8 +298,16 @@ test('HTTP：批量拆解自动开放，claim 冲突返回 409 且带 code', asy
         body: JSON.stringify({
           created_by: 'alice',
           tasks: [
-            { purpose: '任务一', done_when: ['可检验一'] },
-            { purpose: '任务二', done_when: ['可检验二'] },
+            {
+              purpose: '任务一',
+              done_when: ['可检验一'],
+              serves_item_ids: [item.item_id],
+            },
+            {
+              purpose: '任务二',
+              done_when: ['可检验二'],
+              serves_item_ids: [item.item_id],
+            },
           ],
         }),
       },
@@ -248,6 +316,22 @@ test('HTTP：批量拆解自动开放，claim 冲突返回 409 且带 code', asy
     assert.equal(created.length, 2);
     assert.ok(created.every((task) => task.status === 'open'));
     assert.ok(created.every((task) => task.project_id === project.project_id));
+
+    // 无关联的拆解任务应返回 400 TASK_NOT_LINKED。
+    const unlinked = await fetch(
+      `${base}/requirements/${requirement.requirement_id}/tasks`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          created_by: 'alice',
+          tasks: [{ purpose: '无关联', done_when: ['缺少关联'] }],
+        }),
+      },
+    );
+    assert.equal(unlinked.status, 400);
+    const unlinkedBody = await unlinked.json();
+    assert.equal(unlinkedBody.code, 'TASK_NOT_LINKED');
 
     const listed = await fetch(
       `${base}/tasks?project_id=${project.project_id}&status=open`,
@@ -288,11 +372,13 @@ test('HTTP：批量拆解自动开放，claim 冲突返回 409 且带 code', asy
 
 test('事件：创建、开放、认领、释放都产生事件', () => {
   const { project, requirement } = seed();
+  const item = seedItem(project.project_id);
   const task = openTask(db, createTask(db, {
     project_id: project.project_id,
     requirement_id: requirement.requirement_id,
     purpose: '事件演示',
     done_when: ['有完整事件链'],
+    serves_item_ids: [item.item_id],
     created_by: 'alice',
   }).task_id);
 

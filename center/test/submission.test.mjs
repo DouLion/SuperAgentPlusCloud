@@ -11,6 +11,7 @@ import {
   openStore,
   createProject,
   createRequirement,
+  createTrunkItem,
   createTask,
   getTask,
   openTask,
@@ -42,7 +43,7 @@ test.after(() => {
   fs.rmSync(dbPath, { force: true });
 });
 
-/** 建项目与需求，返回 { project, requirement }。 */
+/** 建项目、需求与主干条目，返回 { project, requirement, item }。 */
 function seed() {
   const project = createProject(db, { name: 'T4 提交评审项目' });
   const requirement = createRequirement(db, {
@@ -50,17 +51,23 @@ function seed() {
     raw_text: '希望登记提交并按完成条件评审',
     author: 'alice',
   });
-  return { project, requirement };
+  const item = createTrunkItem(db, {
+    project_id: project.project_id,
+    kind: 'scope',
+    statement: '提交评审关联范围',
+  });
+  return { project, requirement, item };
 }
 
 /** 建任务并开放，返回任务行。 */
 function seedOpenTask() {
-  const { project, requirement } = seed();
+  const { project, requirement, item } = seed();
   const task = openTask(db, createTask(db, {
     project_id: project.project_id,
     requirement_id: requirement.requirement_id,
     purpose: '实现提交与评审',
     done_when: ['接口返回提交列表', '评审后任务状态正确'],
+    serves_item_ids: [item.item_id],
     created_by: 'alice',
   }).task_id);
   return task;
@@ -68,11 +75,12 @@ function seedOpenTask() {
 
 /** 建任务、开放并由 worker 认领，返回 { task, claim, project }。 */
 function seedClaimedTask(workerId = 'worker_a') {
-  const { project } = seed();
+  const { project, item } = seed();
   const task = openTask(db, createTask(db, {
     project_id: project.project_id,
     purpose: '实现提交与评审',
     done_when: ['接口返回提交列表', '评审后任务状态正确'],
+    serves_item_ids: [item.item_id],
     created_by: 'alice',
   }).task_id);
   const claimed = claimTask(db, task.task_id, workerId);
@@ -407,11 +415,12 @@ test('评审：非法结论、不存在提交抛错', () => {
 });
 
 test('事件：提交与各评审结论都写入事件', () => {
-  const { project } = seed();
+  const { project, item } = seed();
   const makeTask = () => openTask(db, createTask(db, {
     project_id: project.project_id,
     purpose: '事件演示',
     done_when: ['有完整事件链'],
+    serves_item_ids: [item.item_id],
     created_by: 'alice',
   }).task_id);
 
@@ -485,7 +494,7 @@ test('HTTP：提交与评审路由、状态码与错误映射', async () => {
   const base = `http://127.0.0.1:${server.address().port}`;
 
   try {
-    const { project } = seed();
+    const { project, item } = seed();
     const created = await fetch(`${base}/tasks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -493,6 +502,7 @@ test('HTTP：提交与评审路由、状态码与错误映射', async () => {
         project_id: project.project_id,
         purpose: 'HTTP 提交评审',
         done_when: ['接口返回提交', '评审后状态正确'],
+        serves_item_ids: [item.item_id],
         created_by: 'alice',
       }),
     }).then((res) => res.json());
@@ -604,7 +614,7 @@ test('HTTP：rework 后可通过 HTTP 重新认领并再次提交', async () => 
   const base = `http://127.0.0.1:${server.address().port}`;
 
   try {
-    const { project } = seed();
+    const { project, item } = seed();
     const task = await fetch(`${base}/tasks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -612,6 +622,7 @@ test('HTTP：rework 后可通过 HTTP 重新认领并再次提交', async () => 
         project_id: project.project_id,
         purpose: '打回后重新认领',
         done_when: ['可再次提交'],
+        serves_item_ids: [item.item_id],
       }),
     }).then((res) => res.json());
 

@@ -12,6 +12,7 @@ import {
   createProject,
   getProject,
   listProjects,
+  createTrunkItem,
   createRequirement,
   getRequirement,
   listRequirements,
@@ -140,6 +141,11 @@ test('评估：创建后需求状态自动变为 assessed，字段往返一致',
     project_id: project.project_id,
     raw_text: '评估演示',
   });
+  const item = createTrunkItem(db, {
+    project_id: project.project_id,
+    kind: 'scope',
+    statement: '评估关联范围',
+  });
 
   const assessment = createAssessment(db, {
     requirement_id: requirement.requirement_id,
@@ -147,6 +153,7 @@ test('评估：创建后需求状态自动变为 assessed，字段往返一致',
     proposed_action: 'relevel',
     impact_summary: '影响导出与权限',
     uncertainties: ['未确认数据量'],
+    related_item_ids: [item.item_id],
     assessor_id: 'ai-session-1',
   });
 
@@ -160,7 +167,10 @@ test('评估：创建后需求状态自动变为 assessed，字段往返一致',
   assert.equal(listAssessments(db, requirement.requirement_id).length, 1);
 
   // 缺省等级为 undecided；旧评估保留，可再次评估。
-  const second = createAssessment(db, { requirement_id: requirement.requirement_id });
+  const second = createAssessment(db, {
+    requirement_id: requirement.requirement_id,
+    assessed_level: 'undecided',
+  });
   assert.equal(second.assessed_level, 'undecided');
   assert.equal(listAssessments(db, requirement.requirement_id).length, 2);
   assert.equal(getRequirement(db, requirement.requirement_id).status, 'assessed');
@@ -177,6 +187,50 @@ test('评估：创建后需求状态自动变为 assessed，字段往返一致',
     () => createAssessment(db, { requirement_id: 'req_missing' }),
     /需求不存在/,
   );
+});
+
+test('评估：无关联主干且等级非 undecided 抛 ASSESSMENT_NOT_LINKED；undecided 可通过', () => {
+  const project = createProject(db, { name: '评估关联项目' });
+  const requirement = createRequirement(db, {
+    project_id: project.project_id,
+    raw_text: '评估关联校验',
+  });
+
+  // 有等级但无法指回主干：不允许默认降级，直接拒绝。
+  assert.throws(
+    () => createAssessment(db, {
+      requirement_id: requirement.requirement_id,
+      assessed_level: 'L1',
+    }),
+    (error) => {
+      assert.equal(error.code, 'ASSESSMENT_NOT_LINKED');
+      assert.equal(error.status, 400);
+      assert.match(error.message, /必须引用相关主干条目/);
+      return true;
+    },
+  );
+
+  // 信息不足时显式标记 undecided，允许创建且不带关联条目。
+  const undecided = createAssessment(db, {
+    requirement_id: requirement.requirement_id,
+    assessed_level: 'undecided',
+  });
+  assert.equal(undecided.assessed_level, 'undecided');
+  assert.deepEqual(undecided.related_item_ids, []);
+
+  // 带关联条目的正常评估仍可通过。
+  const item = createTrunkItem(db, {
+    project_id: project.project_id,
+    kind: 'goal',
+    statement: '评估关联目标',
+  });
+  const linked = createAssessment(db, {
+    requirement_id: requirement.requirement_id,
+    assessed_level: 'L2',
+    related_item_ids: [item.item_id],
+  });
+  assert.equal(linked.assessed_level, 'L2');
+  assert.deepEqual(linked.related_item_ids, [item.item_id]);
 });
 
 test('决定：accepted 缺 confirmed_by 抛错；缺 final_level 抛错', () => {
@@ -306,10 +360,16 @@ test('事件：每次变更都产生事件，时间线按发生时间升序且�
     raw_text: '事件演示',
     author: 'bob',
   });
+  const item = createTrunkItem(db, {
+    project_id: project.project_id,
+    kind: 'scope',
+    statement: '事件演示关联范围',
+  });
   createAssessment(db, {
     requirement_id: requirement.requirement_id,
     assessed_level: 'L2',
     proposed_action: 'accept',
+    related_item_ids: [item.item_id],
   });
   createDecision(db, {
     requirement_id: requirement.requirement_id,

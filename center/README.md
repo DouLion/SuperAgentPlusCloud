@@ -11,13 +11,51 @@
 ```text
 center/
   package.json
-  bin/center.mjs     启动入口（HTTP 服务与路由骨架）
+  bin/center.mjs     启动入口（环境变量、监听、优雅退出）
+  src/server.mjs     HTTP 路由与错误映射
   src/schema.sql     建表语句
   src/store.mjs      SQLite 访问层
   src/init-db.mjs    建库脚本
   test/*.test.mjs    按层测试（store/requirement/task/submission/change/trunk）
   data/center.db     运行期生成（已忽略，不入库）
 ```
+
+## 主要接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/healthz` | 健康检查 |
+| `GET/POST` | `/projects` | 项目列表 / 新建 |
+| `GET/POST` | `/trunk-items` | 主干条目列表 / 新建（默认 proposed） |
+| `GET` | `/trunk-items/:id` | 查询单个条目 |
+| `POST` | `/trunk-items/:id/confirm` | proposed → active，body `{confirmed_by, valid_from}` |
+| `POST` | `/trunk-items/:id/retire` | active → retired，body `{confirmed_by}` |
+| `GET/POST` | `/requirements` | 需求列表 / 提交需求 |
+| `GET` | `/requirements/:id` | 需求详情（含原文与自报等级） |
+| `POST` | `/requirements/:id/assessments` | 评估（影响等级、关联条目、建议动作） |
+| `GET` | `/requirements/:id/assessments` | 评估列表 |
+| `POST` | `/requirements/:id/decision` | 决定（accepted/relevelled/needs_info/rejected/deferred） |
+| `GET` | `/requirements/:id/decisions` | 决定列表 |
+| `GET` | `/requirements/:id/timeline` | 需求相关事件时间线 |
+| `POST` | `/requirements/:id/tasks` | 批量拆解任务并开放 |
+| `GET/POST` | `/tasks` | 任务列表 / 新建（创建后自动开放） |
+| `GET` | `/tasks/:id` | 任务详情 |
+| `POST` | `/tasks/:id/claim` | 原子认领，body `{worker_id}` |
+| `POST` | `/tasks/:id/release` | 认领者本人释放 |
+| `GET` | `/tasks/:id/claims` | 认领历史 |
+| `GET/POST` | `/tasks/:id/submissions` | 提交列表 / 提交成果 |
+| `GET` | `/submissions/:id` | 提交详情 |
+| `POST` | `/submissions/:id/review` | 评审（confirm/reject/needs_info） |
+| `GET` | `/submissions/:id/reviews` | 评审列表 |
+| `GET/POST` | `/trunk-changes` | 主干变更列表 / 发起变更 |
+| `GET` | `/trunk-changes/:id` | 变更详情 |
+| `POST` | `/trunk-changes/:id/confirm` | proposed → confirmed |
+| `POST` | `/trunk-changes/:id/activate` | confirmed → in_effect（替代旧条目） |
+| `POST` | `/trunk-changes/:id/close` | in_effect → closed（须完成影响处置） |
+| `GET/POST` | `/trunk-changes/:id/impacts` | 影响项列表 / 登记 |
+| `PATCH` | `/impact-items/:id` | 更新影响项评估与处置 |
+
+错误约定：业务校验失败 400；状态冲突 409（响应带 `code`，如 `TASK_NOT_CLAIMABLE`、`TASK_NOT_LINKED`、`CHANGE_IMPACT_UNRESOLVED`、`INVALID_TRANSITION`）；路径存在但方法不符 405（带 `Allow`）；其余 500。
 
 ## 启动
 
@@ -26,19 +64,7 @@ cd center
 npm start                 # = node bin/center.mjs
 ```
 
-启动后访问 `GET http://127.0.0.1:8787/healthz`，应返回 `{"ok":true}`。
-
-主干条目相关接口（T6 补全）：
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/trunk-items?project_id=&status=&kind=` | 列出主干条目 |
-| `POST` | `/trunk-items` | 新建条目（默认 proposed） |
-| `GET` | `/trunk-items/:id` | 查询单个条目 |
-| `POST` | `/trunk-items/:id/confirm` | proposed → active，body `{confirmed_by, valid_from}` |
-| `POST` | `/trunk-items/:id/retire` | active → retired，body `{confirmed_by}` |
-
-非法流转（如对 active 再 confirm）返回 409，并带 `code=INVALID_TRANSITION`。
+启动后访问 `GET http://127.0.0.1:8787/healthz`，应返回 `{"ok":true}`。完整接口清单见上节「主要接口」。
 
 ## 初始化数据库
 

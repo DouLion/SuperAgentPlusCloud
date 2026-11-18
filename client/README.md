@@ -30,18 +30,21 @@ $env:CENTER_URL = "http://127.0.0.1:9000"
 node bin/sap.mjs --help
 ```
 
-## 命令规划
+## 命令
 
 | 命令 | 用途 | 实现层 |
 |---|---|---|
 | `submit` | 提交需求/问题，保留原文与材料引用 | T2 |
 | `decide` | 确认决定：接受 / 改级 / 追问 / 拒绝 / 延后 | T2 |
+| `show` | 查看需求或任务的完整链条（评估、决定、认领、提交、评审） | T2 / T4 |
 | `tasks` | 查看任务、范围与完成条件 | T3 |
-| `claim` | 原子认领任务、释放 | T3 |
+| `claim` | 原子认领任务 | T3 |
+| `release` | 认领者本人释放任务 | T3 |
 | `deliver` | 提交成果（commit 引用、自测证据） | T4 |
 | `review` | 按完成条件逐项评审（确认 / 打回 / 需补充） | T4 |
 | `trunk` | 主干条目：查看、提出、确认生效、退役 | T6 |
-| `change` | 主干变更、影响清单逐项处置 | T5 |
+| `change` | 主干变更：发起、确认、生效、关闭 | T5 |
+| `impact` | 影响项登记与逐项处置 | T5 |
 
 ### trunk 命令
 
@@ -57,7 +60,8 @@ node bin/sap.mjs trunk retire --item <item_id> --by <名字>
 条位置为 `retired` 并保留历史。非法流转（如对 `active` 再 confirm）透出服务端
 409 `INVALID_TRANSITION` 并非零退出。
 
-命令实现后，参数解析统一放在 `client/src/commands/`，HTTP 调用集中在 `client/src/api.mjs`。
+参数解析统一放在 `client/src/commands/`，HTTP 调用集中在 `client/src/api.mjs`。
+新增命令时两处都要同步登记。
 
 ## 测试
 

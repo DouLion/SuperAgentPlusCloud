@@ -746,6 +746,9 @@ function parseAssessment(row) {
 /**
  * 新建评估。必填 requirement_id；assessed_level 允许 L0..L4 或 undecided（缺省 undecided）；
  * proposed_action 允许 accept/relevel/ask/reject/investigate；assessor_type 缺省 AI。
+ * 关联规则：必须引用相关主干条目（related_item_ids 非空），或明确标记信息不足
+ * （assessed_level=undecided）；两者都不满足时抛 code=ASSESSMENT_NOT_LINKED（400），
+ * 不允许用空关联默认降级。
  * 若需求当前为 submitted，自动置为 assessed。
  * @returns {object} 已解析 JSON 字段的完整评估行
  */
@@ -759,6 +762,17 @@ export function createAssessment(db, input = {}) {
   const assessedLevel = pick(input, 'assessed_level', 'assessedLevel') ?? 'undecided';
   if (!ASSESSMENT_LEVELS.includes(assessedLevel)) {
     throw new Error(`非法的评估等级：${assessedLevel}`);
+  }
+
+  // 关联校验：有主干条目引用，或明确标记信息不足（undecided）。
+  const relatedItemIds = pick(input, 'related_item_ids', 'relatedItemIds');
+  const hasRelatedItems = Array.isArray(relatedItemIds) && relatedItemIds.length > 0;
+  if (!hasRelatedItems && assessedLevel !== 'undecided') {
+    throw codedError(
+      'ASSESSMENT_NOT_LINKED',
+      '评估必须引用相关主干条目；信息不足时请使用 assessed_level=undecided',
+      400,
+    );
   }
 
   const proposedAction = pick(input, 'proposed_action', 'proposedAction');
@@ -981,6 +995,21 @@ export function createTask(db, input = {}) {
     throw new Error(`非法的任务状态：${status}`);
   }
 
+  // 草稿阶段允许信息不足；一旦直接创建为可认领或更后状态，必须已能指回主干，
+  // 否则会绕过 openTask 的关联校验。
+  if (status !== 'draft') {
+    const serves = pick(input, 'serves_item_ids', 'servesItemIds');
+    const question = pick(input, 'related_question_id', 'relatedQuestionId');
+    const linked = (Array.isArray(serves) && serves.length > 0) || (question !== undefined && question !== null && question !== '');
+    if (!linked) {
+      throw codedError(
+        'TASK_NOT_LINKED',
+        '任务进入可认领状态前，必须关联主干条目（serves_item_ids）或明确待决问题（related_question_id）',
+        400,
+      );
+    }
+  }
+
   assertProjectExists(db, projectId);
 
   const requirementId = pick(input, 'requirement_id', 'requirementId');
@@ -1062,6 +1091,9 @@ export function listTasks(db, query = {}) {
 
 /**
  * 开放任务：draft → open，使其可被认领。
+ * 进入可认领状态前必须能指回主干：serves_item_ids 非空，或明确 related_question_id
+ * （探索任务允许以待决问题为主）；两者都缺时抛 code=TASK_NOT_LINKED（400）。
+ * 创建阶段（createTask）不强制，允许草稿阶段信息不足。
  * @param {object} [patch] 可附带 actor / reason 用于事件
  * @returns {object|null} 更新后的完整任务行
  */
@@ -1070,6 +1102,18 @@ export function openTask(db, taskId, patch = {}) {
   if (!existing) throw new Error(`任务不存在：${taskId}`);
   if (existing.status !== 'draft') {
     throw new Error(`任务当前状态不可开放：${existing.status}`);
+  }
+
+  const servesItemIds = Array.isArray(existing.serves_item_ids) ? existing.serves_item_ids : [];
+  const hasQuestion = existing.related_question_id !== null
+    && existing.related_question_id !== undefined
+    && String(existing.related_question_id).trim() !== '';
+  if (servesItemIds.length === 0 && !hasQuestion) {
+    throw codedError(
+      'TASK_NOT_LINKED',
+      '任务进入可认领状态前，必须关联主干条目（serves_item_ids）或明确待决问题（related_question_id）',
+      400,
+    );
   }
 
   const now = nowIso();
