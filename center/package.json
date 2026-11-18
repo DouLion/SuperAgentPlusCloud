@@ -1,0 +1,15 @@
+{
+  "name": "superagentplus-center",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SuperAgentPlus 中心服务：项目权威记录与协调（T0 骨架 + T1 存储）",
+  "type": "module",
+  "scripts": {
+    "start": "node bin/center.mjs",
+    "init-db": "node src/init-db.mjs",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

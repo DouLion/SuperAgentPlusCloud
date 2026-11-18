@@ -1,2 +1,7 @@
 __pycache__/
 .DS_Store
+
+# Node / SuperAgentPlus
+node_modules/
+center/data/
+*.db

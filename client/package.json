@@ -1,0 +1,16 @@
+{
+  "name": "superagentplus-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SuperAgentPlus 命令行客户端：只与 Center 交互，不接入编码 CLI",
+  "type": "module",
+  "bin": {
+    "sap": "bin/sap.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}
