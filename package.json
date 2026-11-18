@@ -8,7 +8,9 @@
     "test": "node --test center/test/ client/test/",
     "e2e": "node client/bin/e2e.mjs",
     "center": "node center/bin/center.mjs",
-    "client": "node client/bin/sap.mjs"
+    "client": "node client/bin/sap.mjs",
+    "web": "npm --prefix web run dev",
+    "build": "npm --prefix web run build"
   },
   "engines": {
     "node": ">=26"

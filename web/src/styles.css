@@ -1,0 +1,114 @@
+:root {
+  --sap-border: #e4e7ed;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  background: #f5f7fa;
+  color: #303133;
+}
+
+.page {
+  padding: 16px 20px 32px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.page-subtitle {
+  color: #909399;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.stat-row {
+  margin-bottom: 16px;
+}
+
+.stat-row .el-col {
+  padding: 0 8px;
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--sap-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.muted {
+  color: #909399;
+  font-size: 12px;
+}
+
+.mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+.card-gap {
+  margin-bottom: 16px;
+}
+
+.suggestion-body {
+  margin-top: 6px;
+  line-height: 1.7;
+}
+
+.suggestion-body .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.suggestion-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.desc-label {
+  color: #909399;
+}
+
+.table-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.step-note {
+  margin: 8px 0 16px;
+}

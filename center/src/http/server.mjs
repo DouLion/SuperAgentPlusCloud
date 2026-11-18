@@ -1,7 +1,10 @@
 // Center HTTP 服务（T7 归置）。
 // 负责路由匹配、JSON 收发、错误映射与服务创建；具体路由见 ./routes/*。
 
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
+import { WEB_DIST } from '../config.mjs';
 import { ROUTES as PROJECT_ROUTES } from './routes/projects.mjs';
 import { ROUTES as TRUNK_ROUTES } from './routes/trunk.mjs';
 import { ROUTES as CHANGE_ROUTES } from './routes/changes.mjs';
@@ -9,6 +12,7 @@ import { ROUTES as REQUIREMENT_ROUTES } from './routes/requirements.mjs';
 import { ROUTES as TASK_ROUTES } from './routes/tasks.mjs';
 import { ROUTES as SUBMISSION_ROUTES } from './routes/submissions.mjs';
 import { ROUTES as AI_ROUTES } from './routes/ai.mjs';
+import { ROUTES as EVENT_ROUTES } from './routes/events.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
 export function segments(pathname) {
@@ -66,7 +70,142 @@ export const ROUTES = [
   ...TASK_ROUTES,
   ...SUBMISSION_ROUTES,
   ...AI_ROUTES,
+  ...EVENT_ROUTES,
 ];
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.txt': 'text/plain; charset=utf-8',
+  '.wasm': 'application/wasm',
+};
+
+/** 未构建前端时的友好提示页。 */
+const FRIENDLY_HTML = `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><title>SuperAgentPlus 面板</title></head>
+<body style="font-family:system-ui,'Microsoft YaHei',sans-serif;background:#f5f7fa;color:#303133;margin:0;display:flex;align-items:center;justify-content:center;height:100vh">
+  <div style="max-width:560px;background:#fff;border:1px solid #e4e7ed;border-radius:8px;padding:28px 32px">
+    <h1 style="font-size:20px;margin:0 0 12px">SuperAgentPlus 面板尚未构建</h1>
+    <p style="color:#606266;line-height:1.8">Center 已启动，但还没有前端构建产物。请先执行：</p>
+    <pre style="background:#f5f7fa;padding:10px 12px;border-radius:6px;font-size:13px">npm --prefix web install
+npm --prefix web run build</pre>
+    <p style="color:#909399;font-size:13px;line-height:1.8">构建后刷新本页面即可打开面板；接口（/healthz、/projects 等）不受影响。</p>
+  </div>
+</body>
+</html>`;
+
+/** 把 URL pathname 解析为 WEB_DIST 内的安全相对路径；越界返回 null。 */
+function resolveSafePath(pathname) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  const normalized = path.normalize(decoded).replace(/^[/\\]+/, '');
+  if (normalized.includes('\0')) return null;
+  const resolved = path.resolve(WEB_DIST, normalized);
+  if (resolved !== WEB_DIST && !resolved.startsWith(WEB_DIST + path.sep)) return null;
+  return resolved;
+}
+
+function writeHtml(res, status, html) {
+  const data = Buffer.from(html, 'utf8');
+  res.writeHead(status, {
+    'content-type': 'text/html; charset=utf-8',
+    'content-length': data.length,
+    'cache-control': 'no-cache',
+  });
+  res.end(data);
+}
+
+/** 前端页面路径：这些路径同时存在 API 路由，浏览器导航时优先返回 SPA。 */
+const SPA_PAGE_PATHS = ['/projects', '/requirements', '/tasks'];
+const SPA_PAGE_PREFIXES = [
+  '/project/',
+  '/trunk/',
+  '/changes/',
+  '/timeline/',
+  '/requirements/',
+  '/tasks/',
+];
+
+function isSpaPagePath(pathname) {
+  return SPA_PAGE_PATHS.includes(pathname)
+    || SPA_PAGE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function acceptsHtml(accept) {
+  return String(accept || '').includes('text/html');
+}
+
+/** 返回 index.html；构建产物缺失时返回友好提示页。 */
+function serveIndexPage(res, method) {
+  const indexFile = path.join(WEB_DIST, 'index.html');
+  if (fs.existsSync(indexFile)) {
+    const data = fs.readFileSync(indexFile);
+    res.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'content-length': data.length,
+      'cache-control': 'no-cache',
+    });
+    res.end(method === 'HEAD' ? undefined : data);
+    return true;
+  }
+  writeHtml(res, 200, FRIENDLY_HTML);
+  return true;
+}
+
+/**
+ * 静态托管：命中静态文件返回文件；未命中的浏览器导航回落到 index.html。
+ * 返回 true 表示已处理响应；false 表示应继续走 API 的 404/405 JSON。
+ */
+function serveStatic(res, pathname, accept, method) {
+  const isRoot = pathname === '/';
+
+  if (!fs.existsSync(WEB_DIST)) {
+    if (isRoot || acceptsHtml(accept)) {
+      writeHtml(res, 200, FRIENDLY_HTML);
+      return true;
+    }
+    return false;
+  }
+
+  const file = resolveSafePath(pathname);
+  if (file && fs.existsSync(file) && fs.statSync(file).isFile()) {
+    const data = fs.readFileSync(file);
+    res.writeHead(200, {
+      'content-type': MIME_TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
+      'content-length': data.length,
+      'cache-control': path.extname(file).toLowerCase() === '.html'
+        ? 'no-cache'
+        : 'public, max-age=3600',
+    });
+    res.end(method === 'HEAD' ? undefined : data);
+    return true;
+  }
+
+  // SPA history 路由：仅浏览器导航回落到 index.html，接口请求仍走 404 JSON。
+  if (isRoot || acceptsHtml(accept)) {
+    return serveIndexPage(res, method);
+  }
+  return false;
+}
 
 export function sendJson(res, status, body, extraHeaders = {}) {
   const data = JSON.stringify(body);
@@ -120,6 +259,11 @@ export function createServer(db, options = {}) {
       const { route, params, allowed, pathMatched } = matchRoute(routes, req.method, url.pathname);
 
       if (!route) {
+        // 静态托管：仅在 GET/HEAD 且路径未匹配任何 API 路由时介入，
+        // 保证 /healthz 等 API 与 404/405 JSON 行为不被吞掉。
+        if (req.method === 'GET' || req.method === 'HEAD') {
+          if (serveStatic(res, url.pathname, req.headers.accept, req.method)) return;
+        }
         const headers = pathMatched && allowed.length > 0 ? { allow: allowed.join(', ') } : {};
         sendJson(
           res,
@@ -132,6 +276,13 @@ export function createServer(db, options = {}) {
           },
           headers,
         );
+        return;
+      }
+
+      // 浏览器刷新前端页面路径（如 /requirements、/tasks/:id）时优先返回 SPA；
+      // 前端 fetch 的 Accept 为 */*，仍走下面的 API 路由。
+      if (req.method === 'GET' && isSpaPagePath(url.pathname) && acceptsHtml(req.headers.accept)) {
+        serveIndexPage(res, req.method);
         return;
       }
 

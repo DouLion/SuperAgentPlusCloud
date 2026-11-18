@@ -41,6 +41,31 @@ npm test          # = node --test center/test/ client/test/
 npm run e2e       # = node client/bin/e2e.mjs
 ```
 
+## 面板
+
+Center 托管 Vue 3 + Element Plus 面板（`web/` 工程）：
+
+```powershell
+npm --prefix web install
+npm --prefix web run build      # 产物 web/dist，由 Center 在 8787 托管
+npm run web                     # 开发模式（Vite，需另开 Center）
+```
+
+构建后打开 `http://127.0.0.1:8787/` 即可使用；未构建时 Center 会给出提示页，不影响 API。
+
+## 模型接入
+
+Center 的评估建议、任务拆解、影响候选由模型生成，**只作为建议，不自动生效**：
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `SAP_LLM_BASE_URL` | 空 | OpenAI 兼容根地址 |
+| `SAP_LLM_API_KEY` | 空 | 缺失则 AI 功能返回 503 |
+| `SAP_LLM_MODEL` | `deepseek-chat` | 模型名 |
+| `SAP_LLM_TIMEOUT_MS` | `30000` | 超时 |
+
+未配置模型时核心链不受影响。
+
 详见 [center/README.md](center/README.md) 与 [client/README.md](client/README.md)。
 
 ## License

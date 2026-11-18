@@ -2,7 +2,16 @@
 // 只负责配置，不含业务逻辑；默认值与原有启动入口保持一致。
 
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DEFAULT_DB_PATH } from './db/store.mjs';
+
+/** center/ 目录，用于解析相对默认路径。 */
+const CENTER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** 前端构建产物目录，默认 center/../web/dist，可用 SAP_WEB_DIST 覆盖。 */
+export const WEB_DIST = path.resolve(
+  process.env.SAP_WEB_DIST || path.resolve(CENTER_DIR, '..', 'web', 'dist'),
+);
 
 /** 监听端口，默认 8787。 */
 export const PORT = Number(process.env.CENTER_PORT || 8787);
@@ -37,6 +46,7 @@ export const config = {
   port: PORT,
   host: HOST,
   db_path: DB_PATH,
+  web_dist: WEB_DIST,
   get llm() {
     return llmConfig();
   },

@@ -1,0 +1,134 @@
+// 前端统一 HTTP 封装：BASE 取 VITE_CENTER_URL（dev 用代理时为空串）。
+// 非 2xx 抛出带服务端 error/code 的错误；网络失败抛「结果待核对，请重试」。
+
+const BASE = (import.meta.env.VITE_CENTER_URL || '').replace(/\/+$/, '');
+
+/** 把查询对象编码为 querystring；空值忽略。 */
+function queryString(query) {
+  if (!query) return '';
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+  }
+  const text = params.toString();
+  return text ? `?${text}` : '';
+}
+
+/** 发起一次 JSON 请求。 */
+async function request(method, path, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.headers['content-type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${BASE}${path}`, init);
+  } catch (err) {
+    const error = new Error(`无法连接 Center，结果待核对，请重试（${err.message}）`);
+    error.code = 'NETWORK_ERROR';
+    throw error;
+  }
+
+  const text = await response.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = data && data.error ? data.error : `HTTP ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    if (data && typeof data.code === 'string') error.code = data.code;
+    throw error;
+  }
+  return data;
+}
+
+/** Center 接口封装；与 client/src/api.mjs 保持同一语义。 */
+export const api = {
+  healthz: () => request('GET', '/healthz'),
+
+  listProjects: (query) => request('GET', `/projects${queryString(query)}`),
+  createProject: (input) => request('POST', '/projects', input),
+  getProject: (id) => request('GET', `/projects/${encodeURIComponent(id)}`),
+
+  listTrunkItems: (query) => request('GET', `/trunk-items${queryString(query)}`),
+  createTrunkItem: (input) => request('POST', '/trunk-items', input),
+  getTrunkItem: (id) => request('GET', `/trunk-items/${encodeURIComponent(id)}`),
+  confirmTrunkItem: (id, input) =>
+    request('POST', `/trunk-items/${encodeURIComponent(id)}/confirm`, input),
+  retireTrunkItem: (id, input) =>
+    request('POST', `/trunk-items/${encodeURIComponent(id)}/retire`, input),
+
+  listRequirements: (query) => request('GET', `/requirements${queryString(query)}`),
+  createRequirement: (input) => request('POST', '/requirements', input),
+  getRequirement: (id) => request('GET', `/requirements/${encodeURIComponent(id)}`),
+  listAssessments: (id) =>
+    request('GET', `/requirements/${encodeURIComponent(id)}/assessments`),
+  createAssessment: (id, input) =>
+    request('POST', `/requirements/${encodeURIComponent(id)}/assessments`, input),
+  listDecisions: (id) =>
+    request('GET', `/requirements/${encodeURIComponent(id)}/decisions`),
+  createDecision: (id, input) =>
+    request('POST', `/requirements/${encodeURIComponent(id)}/decision`, input),
+  getRequirementTimeline: (id) =>
+    request('GET', `/requirements/${encodeURIComponent(id)}/timeline`),
+  createRequirementTasks: (id, input) =>
+    request('POST', `/requirements/${encodeURIComponent(id)}/tasks`, input),
+
+  listTasks: (query) => request('GET', `/tasks${queryString(query)}`),
+  createTask: (input) => request('POST', '/tasks', input),
+  getTask: (id) => request('GET', `/tasks/${encodeURIComponent(id)}`),
+  claimTask: (id, input) => request('POST', `/tasks/${encodeURIComponent(id)}/claim`, input),
+  releaseTask: (id, input) =>
+    request('POST', `/tasks/${encodeURIComponent(id)}/release`, input),
+  listClaims: (id) => request('GET', `/tasks/${encodeURIComponent(id)}/claims`),
+  listSubmissions: (taskId) =>
+    request('GET', `/tasks/${encodeURIComponent(taskId)}/submissions`),
+  createSubmission: (taskId, input) =>
+    request('POST', `/tasks/${encodeURIComponent(taskId)}/submissions`, input),
+  getSubmission: (id) => request('GET', `/submissions/${encodeURIComponent(id)}`),
+  listReviews: (id) => request('GET', `/submissions/${encodeURIComponent(id)}/reviews`),
+  createReview: (id, input) =>
+    request('POST', `/submissions/${encodeURIComponent(id)}/review`, input),
+
+  listTrunkChanges: (query) => request('GET', `/trunk-changes${queryString(query)}`),
+  createTrunkChange: (input) => request('POST', '/trunk-changes', input),
+  getTrunkChange: (id) => request('GET', `/trunk-changes/${encodeURIComponent(id)}`),
+  confirmTrunkChange: (id, input) =>
+    request('POST', `/trunk-changes/${encodeURIComponent(id)}/confirm`, input),
+  activateTrunkChange: (id, input) =>
+    request('POST', `/trunk-changes/${encodeURIComponent(id)}/activate`, input),
+  closeTrunkChange: (id) =>
+    request('POST', `/trunk-changes/${encodeURIComponent(id)}/close`),
+  addImpactItem: (changeId, input) =>
+    request('POST', `/trunk-changes/${encodeURIComponent(changeId)}/impacts`, input),
+  listImpactItems: (changeId) =>
+    request('GET', `/trunk-changes/${encodeURIComponent(changeId)}/impacts`),
+  updateImpactItem: (impactId, patch) =>
+    request('PATCH', `/impact-items/${encodeURIComponent(impactId)}`, patch),
+
+  listEvents: (query) => request('GET', `/events${queryString(query)}`),
+
+  getAiHealth: () => request('GET', '/ai/health'),
+  adviseRequirement: (id) => request('POST', `/requirements/${encodeURIComponent(id)}/advice`, {}),
+  planRequirement: (id) => request('POST', `/requirements/${encodeURIComponent(id)}/plan`, {}),
+  adviseTrunkChange: (id) =>
+    request('POST', `/trunk-changes/${encodeURIComponent(id)}/advice`, {}),
+  listAiSuggestions: (query) => request('GET', `/ai/suggestions${queryString(query)}`),
+};
+
+/** 统一错误文案：网络错误与 AI 未配置给出可操作提示，其余透出服务端中文错误。 */
+export function errorMessage(err, fallback = '操作失败') {
+  if (!err) return fallback;
+  if (err.code === 'NETWORK_ERROR') return err.message;
+  if (err.code === 'AI_NOT_CONFIGURED') return 'Center 未配置模型：请设置 SAP_LLM_BASE_URL 与 SAP_LLM_API_KEY';
+  return err.message || fallback;
+}

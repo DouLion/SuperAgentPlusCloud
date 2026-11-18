@@ -3,5 +3,7 @@ __pycache__/
 
 # Node / SuperAgentPlus
 node_modules/
+web/node_modules/
+web/dist/
 center/data/
 *.db
