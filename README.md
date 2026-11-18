@@ -28,7 +28,19 @@ center/  中心服务实现（待补充）
 client/  客户端实现（待补充）
 ```
 
-当前处于设计阶段，没有可运行的服务端或客户端。
+当前 Center 与 Client 均可运行：Center 提供 HTTP 服务与 SQLite 存储，Client 提供命令行；
+`trunk` 等命令已实现，端到端脚本可跑通完整链路。
+
+## 运行与测试
+
+```powershell
+npm run center    # 启动 Center（默认 http://127.0.0.1:8787）
+npm run client -- --help
+npm test          # = node --test center/test/ client/test/
+npm run e2e       # = node client/bin/e2e.mjs
+```
+
+详见 [center/README.md](center/README.md) 与 [client/README.md](client/README.md)。
 
 ## License
 

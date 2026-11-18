@@ -340,6 +340,96 @@ export function updateTrunkItemStatus(db, itemId, status, patch = {}) {
   return getTrunkItem(db, itemId);
 }
 
+/**
+ * 确认主干条目：仅 proposed 可确认 → active。
+ * confirmed_by 必填；valid_from 可空（缺省保留原值）。写事件 trunk_item.confirmed。
+ * 非 proposed 状态抛 code=INVALID_TRANSITION（409）。
+ * @returns {object} 更新后的完整行
+ */
+export function confirmTrunkItem(db, itemId, patch = {}) {
+  const item = getTrunkItem(db, itemId);
+  if (!item) throw notFound(`主干条目不存在：${itemId}`);
+  if (item.status !== 'proposed') {
+    throw codedError('INVALID_TRANSITION', `主干条目当前状态不可确认：${item.status}`);
+  }
+
+  const confirmedBy = required(patch, 'confirmed_by', 'confirmedBy');
+  const now = pick(patch, 'confirmed_at', 'confirmedAt') ?? nowIso();
+  const validFrom = pick(patch, 'valid_from', 'validFrom') ?? item.valid_from ?? null;
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(
+      `UPDATE trunk_items
+       SET status = 'active', confirmed_at = ?, confirmed_by = ?, valid_from = ?
+       WHERE item_id = ?`,
+    ).run(now, confirmedBy, validFrom, itemId);
+
+    appendEvent(db, {
+      project_id: item.project_id,
+      object_type: 'trunk_item',
+      object_id: itemId,
+      event_type: 'trunk_item.confirmed',
+      actor: confirmedBy,
+      occurred_at: now,
+      reason: validFrom
+        ? `主干条目已确认生效，生效时间：${validFrom}`
+        : '主干条目已确认生效',
+      refs: [itemId],
+    });
+
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  return getTrunkItem(db, itemId);
+}
+
+/**
+ * 退役主干条目：仅 active 可退役 → retired（停止生效，保留历史）。
+ * confirmed_by 必填，作为退役操作人写入事件 trunk_item.retired；
+ * 不覆盖原有的 confirmed_at / confirmed_by，避免抹掉首次确认痕迹。
+ * 非 active 状态抛 code=INVALID_TRANSITION（409）。
+ * @returns {object} 更新后的完整行
+ */
+export function retireTrunkItem(db, itemId, patch = {}) {
+  const item = getTrunkItem(db, itemId);
+  if (!item) throw notFound(`主干条目不存在：${itemId}`);
+  if (item.status !== 'active') {
+    throw codedError('INVALID_TRANSITION', `主干条目当前状态不可退役：${item.status}`);
+  }
+
+  const confirmedBy = required(patch, 'confirmed_by', 'confirmedBy');
+  const now = pick(patch, 'confirmed_at', 'confirmedAt') ?? nowIso();
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(
+      `UPDATE trunk_items SET status = 'retired' WHERE item_id = ?`,
+    ).run(itemId);
+
+    appendEvent(db, {
+      project_id: item.project_id,
+      object_type: 'trunk_item',
+      object_id: itemId,
+      event_type: 'trunk_item.retired',
+      actor: confirmedBy,
+      occurred_at: now,
+      reason: '主干条目已退役，停止生效并保留历史',
+      refs: [itemId],
+    });
+
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  return getTrunkItem(db, itemId);
+}
+
 // -------------------------------------------------------------------- 事件
 
 /**

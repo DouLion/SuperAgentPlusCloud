@@ -77,6 +77,12 @@ export const api = {
   listTrunkItems: (query, options) =>
     apiRequest('GET', `/trunk-items${queryString(query)}`, undefined, options),
   createTrunkItem: (input, options) => apiRequest('POST', '/trunk-items', input, options),
+  getTrunkItem: (itemId, options) =>
+    apiRequest('GET', `/trunk-items/${encodeURIComponent(itemId)}`, undefined, options),
+  confirmTrunkItem: (itemId, input, options) =>
+    apiRequest('POST', `/trunk-items/${encodeURIComponent(itemId)}/confirm`, input, options),
+  retireTrunkItem: (itemId, input, options) =>
+    apiRequest('POST', `/trunk-items/${encodeURIComponent(itemId)}/retire`, input, options),
 
   listRequirements: (query, options) =>
     apiRequest('GET', `/requirements${queryString(query)}`, undefined, options),

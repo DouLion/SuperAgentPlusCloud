@@ -1,6 +1,6 @@
 // 客户端帮助文本与命令清单。
 // 已实现：submit / decide / show / tasks / claim / release（T2/T3）；
-// deliver / review（T4）；change / impact（T5）。
+// deliver / review（T4）；change / impact（T5）；trunk（T6）。
 
 export const DEFAULT_CENTER_URL = 'http://127.0.0.1:8787';
 
@@ -14,6 +14,7 @@ export const IMPLEMENTED_COMMANDS = [
   'release',
   'deliver',
   'review',
+  'trunk',
   'change',
   'impact',
 ];
@@ -70,9 +71,15 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'trunk',
-    usage: 'sap trunk list|show|propose --project <id>',
-    desc: '查看/提出主干条目',
-    implemented: false,
+    usage:
+      'sap trunk list --project <id> [--status proposed|active|superseded|retired] [--kind <类型>] ｜ '
+      + 'show --item <item_id> ｜ '
+      + 'propose --project <id> --kind <goal|scope|capability|business_rule|interface|data_contract|architecture_decision|other> '
+      + '--statement <表述> [--rationale ...] [--source ...] [--by <名字>] ｜ '
+      + 'confirm --item <item_id> --by <名字> [--valid-from <ISO>] ｜ '
+      + 'retire --item <item_id> --by <名字>',
+    desc: '主干条目：查看、提出（proposed 建议）、确认生效（active）与退役（retired）',
+    implemented: true,
   },
   {
     name: 'change',
@@ -101,6 +108,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T5 主干变更与影响处置 —— submit / decide / show / tasks / claim / release / deliver / review / change / impact 可用。',
+    '当前进度：T6 端到端 —— submit / decide / show / tasks / claim / release / deliver / review / trunk / change / impact 可用。',
   ].join('\n');
 }

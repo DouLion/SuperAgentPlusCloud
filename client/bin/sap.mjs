@@ -13,6 +13,7 @@ import { run as runDeliver } from '../src/commands/deliver.mjs';
 import { run as runReview } from '../src/commands/review.mjs';
 import { run as runChange } from '../src/commands/change.mjs';
 import { run as runImpact } from '../src/commands/impact.mjs';
+import { run as runTrunk } from '../src/commands/trunk.mjs';
 
 const args = process.argv.slice(2);
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -28,6 +29,7 @@ const handlers = new Map([
   ['review', runReview],
   ['change', runChange],
   ['impact', runImpact],
+  ['trunk', runTrunk],
 ]);
 
 function main(argv) {

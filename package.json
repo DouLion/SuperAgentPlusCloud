@@ -1,0 +1,16 @@
+{
+  "name": "superagentplus-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SuperAgentPlus：主干权威记录 + 需求到评审链路（Center + Client，零第三方依赖）",
+  "scripts": {
+    "test": "node --test center/test/ client/test/",
+    "e2e": "node client/bin/e2e.mjs",
+    "center": "node center/bin/center.mjs",
+    "client": "node client/bin/sap.mjs"
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

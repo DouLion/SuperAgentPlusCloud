@@ -49,6 +49,9 @@ export const TRUNK_ITEM_KINDS = [
   'other',
 ];
 
+/** 主干条目状态：proposed / active / superseded / retired。 */
+export const TRUNK_ITEM_STATUSES = ['proposed', 'active', 'superseded', 'retired'];
+
 /** 主干变更状态：proposed → confirmed → in_effect → closed。 */
 export const CHANGE_STATUSES = ['proposed', 'confirmed', 'in_effect', 'closed'];
 

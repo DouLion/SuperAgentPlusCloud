@@ -8,7 +8,9 @@
     "sap": "bin/sap.mjs"
   },
   "scripts": {
-    "test": "node --test test/"
+    "start": "node bin/sap.mjs",
+    "test": "node --test test/",
+    "e2e": "node bin/e2e.mjs"
   },
   "engines": {
     "node": ">=26"

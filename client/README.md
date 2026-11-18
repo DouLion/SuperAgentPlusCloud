@@ -5,7 +5,7 @@
 
 - 运行时：Node.js v26+，全部 ESM。
 - 依赖：零第三方依赖，仅 Node 内置模块。
-- 当前进度：**T0 骨架**，`sap --help` 可用，命令实现从 T2 起逐层补齐。
+- 当前进度：**T0–T6**，`trunk` 命令已实现，端到端脚本可通过 `npm run e2e` 运行。
 
 ## 安装与运行
 
@@ -40,8 +40,22 @@ node bin/sap.mjs --help
 | `claim` | 原子认领任务、释放 | T3 |
 | `deliver` | 提交成果（commit 引用、自测证据） | T4 |
 | `review` | 按完成条件逐项评审（确认 / 打回 / 需补充） | T4 |
-| `trunk` | 查看与提出主干条目 | T5 |
+| `trunk` | 主干条目：查看、提出、确认生效、退役 | T6 |
 | `change` | 主干变更、影响清单逐项处置 | T5 |
+
+### trunk 命令
+
+```powershell
+node bin/sap.mjs trunk list --project <id> [--status proposed|active|superseded|retired] [--kind <类型>]
+node bin/sap.mjs trunk show --item <item_id>
+node bin/sap.mjs trunk propose --project <id> --kind <类型> --statement <表述> [--rationale ...] [--source ...] [--by <名字>]
+node bin/sap.mjs trunk confirm --item <item_id> --by <名字> [--valid-from <ISO>]
+node bin/sap.mjs trunk retire --item <item_id> --by <名字>
+```
+
+`propose` 只生成 `proposed` 建议；`confirm` 才进入 `active`；`retire` 将 `active`
+条位置为 `retired` 并保留历史。非法流转（如对 `active` 再 confirm）透出服务端
+409 `INVALID_TRANSITION` 并非零退出。
 
 命令实现后，参数解析统一放在 `client/src/commands/`，HTTP 调用集中在 `client/src/api.mjs`。
 
@@ -50,4 +64,28 @@ node bin/sap.mjs --help
 ```powershell
 cd client
 npm test                  # = node --test test/
+# 或在仓库根目录：
+npm test                  # = node --test center/test/ client/test/
 ```
+
+## 端到端
+
+在仓库根目录执行：
+
+```powershell
+npm run e2e    # = node client/bin/e2e.mjs
+# 或在 client 目录：
+npm run e2e    # = node bin/e2e.mjs
+```
+
+脚本在进程内启动 Center（临时库 + 系统分配端口），通过真实 HTTP 与 `trunk`
+命令跑通完整链路，结束时清理临时库，不留下后台进程或端口占用。
+
+## 根目录脚本
+
+| 命令 | 作用 |
+|---|---|
+| `npm test` | 运行 Center 与 Client 的全部测试 |
+| `npm run e2e` | 运行端到端脚本 |
+| `npm run center` | 启动 Center |
+| `npm run client` | 运行 Client |
