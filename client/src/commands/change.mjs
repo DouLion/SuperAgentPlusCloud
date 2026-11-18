@@ -4,6 +4,7 @@
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag, collectFlagValues } from '../args.mjs';
 import { TRUNK_ITEM_KINDS } from '../limits.mjs';
+import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'change',
@@ -44,7 +45,7 @@ async function runPropose(argv, io) {
     projectId = requireFlag(flags, 'project', '<id>');
     reason = requireFlag(flags, 'reason', '<理由>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.propose}`);
     return 1;
   }
@@ -56,7 +57,7 @@ async function runPropose(argv, io) {
   try {
     proposedItems = rawProposals.map(parseProposal);
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.propose}`);
     return 1;
   }
@@ -86,7 +87,7 @@ async function runPropose(argv, io) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -101,7 +102,7 @@ async function runConfirm(argv, io) {
     changeId = requireFlag(flags, 'change', '<change_id>');
     by = requireFlag(flags, 'by', '<名字>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.confirm}`);
     return 1;
   }
@@ -117,7 +118,7 @@ async function runConfirm(argv, io) {
     out(`生效时间：${change.effective_at ?? '未指定'}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -132,7 +133,7 @@ async function runActivate(argv, io) {
     changeId = requireFlag(flags, 'change', '<change_id>');
     by = requireFlag(flags, 'by', '<名字>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.activate}`);
     return 1;
   }
@@ -149,7 +150,7 @@ async function runActivate(argv, io) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -162,7 +163,7 @@ async function runClose(argv, io) {
   try {
     changeId = requireFlag(flags, 'change', '<change_id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.close}`);
     return 1;
   }
@@ -178,7 +179,7 @@ async function runClose(argv, io) {
         + '若确认没有影响对象，也需要在提出变更时填写影响声明。');
       return 1;
     }
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -210,7 +211,7 @@ async function runShow(argv, io) {
   try {
     changeId = requireFlag(flags, 'change', '<change_id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.show}`);
     return 1;
   }
@@ -239,7 +240,7 @@ async function runShow(argv, io) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -278,7 +279,7 @@ export async function run(argv, io = {}) {
   try {
     return await handler(rest, { out, err });
   } catch (error) {
-    err(error instanceof Error ? error.message : String(error));
+    printError(error, err);
     return 1;
   }
 }

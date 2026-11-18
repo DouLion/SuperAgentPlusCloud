@@ -3,6 +3,7 @@
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag } from '../args.mjs';
 import { LEVELS } from '../limits.mjs';
+import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'submit',
@@ -25,7 +26,7 @@ export async function run(argv, io = {}) {
     projectId = requireFlag(flags, 'project', '<id>');
     text = requireFlag(flags, 'text', '<原文>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -51,7 +52,7 @@ export async function run(argv, io = {}) {
     if (requirement.claimed_level) out(`自报等级：${requirement.claimed_level}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

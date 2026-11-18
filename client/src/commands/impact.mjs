@@ -8,6 +8,7 @@ import {
   IMPACT_ASSESSMENT_STATUSES,
   IMPACT_RESOLUTIONS,
 } from '../limits.mjs';
+import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'impact',
@@ -33,7 +34,7 @@ async function runAdd(argv, io) {
     targetType = requireFlag(flags, 'type', '<类型>');
     targetId = requireFlag(flags, 'target', '<id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.add}`);
     return 1;
   }
@@ -55,7 +56,7 @@ async function runAdd(argv, io) {
     if (item.owner_id) out(`负责人：${item.owner_id}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -70,7 +71,7 @@ async function runUpdate(argv, io) {
     impactId = requireFlag(flags, 'impact', '<impact_id>');
     status = requireFlag(flags, 'status', '<状态>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.update}`);
     return 1;
   }
@@ -104,7 +105,7 @@ async function runUpdate(argv, io) {
     if (item.reason) out(`理由：${item.reason}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -137,7 +138,7 @@ export async function run(argv, io = {}) {
   try {
     return await handler(rest, { out, err });
   } catch (error) {
-    err(error instanceof Error ? error.message : String(error));
+    printError(error, err);
     return 1;
   }
 }

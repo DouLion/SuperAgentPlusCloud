@@ -3,16 +3,12 @@
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag } from '../args.mjs';
 import { TASK_STATUSES } from '../limits.mjs';
+import { line, printError } from '../format.mjs';
 
 export const meta = {
   name: 'tasks',
   usage: 'sap tasks --project <id> [--status open|claimed|...] [--requirement <id>]',
 };
-
-function line(out, label, value) {
-  if (value === undefined || value === null || value === '') return;
-  out(`  ${label}：${value}`);
-}
 
 function renderTask(out, task) {
   out(`任务 ${task.task_id}`);
@@ -50,7 +46,7 @@ export async function run(argv, io = {}) {
   try {
     projectId = requireFlag(flags, 'project', '<id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -80,7 +76,7 @@ export async function run(argv, io = {}) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

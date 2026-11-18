@@ -3,6 +3,7 @@
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag } from '../args.mjs';
 import { LEVELS, CONCLUSIONS } from '../limits.mjs';
+import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'decide',
@@ -25,7 +26,7 @@ export async function run(argv, io = {}) {
     requirementId = requireFlag(flags, 'requirement', '<id>');
     conclusion = requireFlag(flags, 'conclusion', '<结论>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -70,7 +71,7 @@ export async function run(argv, io = {}) {
     out(`需求状态：${requirement.status}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

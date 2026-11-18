@@ -2,6 +2,7 @@
 
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag, collectFlagValues } from '../args.mjs';
+import { formatCommitRef, printError } from '../format.mjs';
 
 export const meta = {
   name: 'deliver',
@@ -37,7 +38,7 @@ export async function run(argv, io = {}) {
     taskId = requireFlag(flags, 'task', '<task_id>');
     workerId = requireFlag(flags, 'worker', '<worker_id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -52,7 +53,7 @@ export async function run(argv, io = {}) {
   try {
     commitRefs = rawCommits.map(parseCommitRef);
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -71,7 +72,7 @@ export async function run(argv, io = {}) {
     out(`任务：${taskId}　提交人：${submission.submitted_by}`);
     out('commit 引用：');
     for (const ref of submission.commit_refs) {
-      out(`  - ${typeof ref === 'string' ? ref : `${ref.repo}@${ref.hash}`}`);
+      out(`  - ${formatCommitRef(ref)}`);
     }
     if (submission.summary) out(`摘要：${submission.summary}`);
     if (submission.self_test) out(`自测：${submission.self_test}`);
@@ -81,7 +82,7 @@ export async function run(argv, io = {}) {
     return 0;
   } catch (error) {
     // 服务端错误（如 SUBMISSION_NOT_ALLOWED）原样透出。
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

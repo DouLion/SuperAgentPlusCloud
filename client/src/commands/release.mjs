@@ -2,6 +2,7 @@
 
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag } from '../args.mjs';
+import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'release',
@@ -24,7 +25,7 @@ export async function run(argv, io = {}) {
     taskId = requireFlag(flags, 'task', '<task_id>');
     workerId = requireFlag(flags, 'worker', '<worker_id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -35,7 +36,7 @@ export async function run(argv, io = {}) {
     out(`任务：${taskId}　状态：${result.task.status}　释放时间：${result.claim.released_at}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

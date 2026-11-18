@@ -2,41 +2,12 @@
 
 import { api } from '../api.mjs';
 import { parseArgs, optionalFlag } from '../args.mjs';
+import { formatCommitRef, line, printError, printTimeline } from '../format.mjs';
 
 export const meta = {
   name: 'show',
   usage: 'sap show --requirement <req_id> | sap show --task <task_id>',
 };
-
-function line(out, label, value) {
-  if (value === undefined || value === null || value === '') return;
-  out(`  ${label}：${value}`);
-}
-
-/** 把 commit 引用（字符串或对象）格式化为可读文本。 */
-function formatCommitRef(ref) {
-  if (typeof ref === 'string') return ref;
-  if (ref && typeof ref === 'object') {
-    const repo = ref.repo ?? '';
-    const hash = ref.hash ?? '';
-    const branch = ref.branch ? `（分支 ${ref.branch}）` : '';
-    return hash ? `${repo}${branch}@${hash}` : `${repo}${branch}`;
-  }
-  return String(ref);
-}
-
-function renderTimeline(out, events) {
-  out('时间线：');
-  if (events.length === 0) {
-    out('  （无）');
-    return;
-  }
-  for (const event of events) {
-    const actor = event.actor ? ` by ${event.actor}` : '';
-    const reason = event.reason ? `　理由：${event.reason}` : '';
-    out(`  ${event.occurred_at}　${event.event_type}${actor}${reason}`);
-  }
-}
 
 async function renderRequirement(out, requirementId) {
   const requirement = await api.getRequirement(requirementId);
@@ -82,7 +53,7 @@ async function renderRequirement(out, requirementId) {
     line(out, '理由', decision.reason);
   }
 
-  renderTimeline(out, timeline);
+  printTimeline(out, timeline);
 }
 
 async function renderTask(out, taskId) {
@@ -186,7 +157,7 @@ export async function run(argv, io = {}) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

@@ -1,16 +1,12 @@
 #!/usr/bin/env node
 // Center 启动入口：只负责环境变量、启动与优雅退出。
-// 路由见 src/server.mjs，存储见 src/store.mjs。
+// 路由见 src/http/server.mjs，存储见 src/db/*。
 
-import path from 'node:path';
-import { openStore, DEFAULT_DB_PATH } from '../src/store.mjs';
-import { createServer } from '../src/server.mjs';
+import { openStore } from '../src/store.mjs';
+import { createServer } from '../src/http/server.mjs';
+import { PORT, HOST, DB_PATH } from '../src/config.mjs';
 
-const PORT = Number(process.env.CENTER_PORT || 8787);
-const HOST = process.env.CENTER_HOST || '127.0.0.1';
-const dbPath = path.resolve(process.env.CENTER_DB || DEFAULT_DB_PATH);
-
-const db = openStore(dbPath);
+const db = openStore(DB_PATH);
 const server = createServer(db);
 
 server.on('error', (err) => {
@@ -21,7 +17,7 @@ server.on('error', (err) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Center 已启动：http://${HOST}:${PORT}`);
-  console.log(`数据库：${dbPath}`);
+  console.log(`数据库：${DB_PATH}`);
 });
 
 function shutdown() {

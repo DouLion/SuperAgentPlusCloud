@@ -3,6 +3,7 @@
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag, collectFlagValues } from '../args.mjs';
 import { REVIEW_CONCLUSIONS } from '../limits.mjs';
+import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'review',
@@ -44,7 +45,7 @@ export async function run(argv, io = {}) {
     reviewerId = requireFlag(flags, 'reviewer', '<reviewer_id>');
     conclusion = requireFlag(flags, 'conclusion', '<结论>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -68,7 +69,7 @@ export async function run(argv, io = {}) {
   try {
     criterionResults = rawCriteria.map(parseCriterion);
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${meta.usage}`);
     return 1;
   }
@@ -90,7 +91,7 @@ export async function run(argv, io = {}) {
     return 0;
   } catch (error) {
     // 服务端错误原样透出，便于使用者判断是冲突还是校验失败。
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }

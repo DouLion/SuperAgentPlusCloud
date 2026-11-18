@@ -5,10 +5,15 @@
 ## 目录约定
 
 - `bin/center.mjs`：进程入口，只负责启动、环境变量、优雅退出。
-- `src/server.mjs`：HTTP 路由（T2 起从 `bin/center.mjs` 拆出，见 05 的目录规划）。
-- `src/store.mjs`：SQLite 访问层，所有 SQL 与 JSON 编解码集中于此。
-- `src/schema.sql`：唯一建表来源，`migrate()` 读取它。
-- `src/init-db.mjs`：一次性建库脚本。
+- `src/config.mjs`：环境变量集中读取（`CENTER_PORT` / `CENTER_HOST` / `CENTER_DB`，T8 起加入 LLM 配置）。
+- `src/http/server.mjs`：HTTP 服务、路由匹配、JSON 收发、错误映射。
+- `src/http/routes/*.mjs`：按领域拆分路由（projects / trunk / requirements / tasks / submissions / changes）。
+- `src/db/store.mjs`：连接、迁移、重置；`src/db/schema.sql` 是唯一建表来源。
+- `src/db/json.mjs`、`enums.mjs`、`events.mjs`：工具、枚举、事件。
+- `src/db/{projects,trunk,requirements,tasks,submissions,changes}.mjs`：各领域数据访问。
+- `src/ai/`：模型接入（T8），只产出建议，不产生已生效状态。
+- `src/public/`：托管前端构建产物（T9）。
+- `src/store.mjs`、`src/server.mjs`：兼容旧引用的**门面**，新代码请直接引用 `db/*` 与 `http/*`。
 - `test/*.test.mjs`：按层新增测试文件，如 `test/requirement.test.mjs`。
 
 ## 命名约定

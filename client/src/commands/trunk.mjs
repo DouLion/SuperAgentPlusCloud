@@ -4,6 +4,7 @@
 import { api } from '../api.mjs';
 import { parseArgs, requireFlag, optionalFlag, collectFlagValues } from '../args.mjs';
 import { TRUNK_ITEM_KINDS, TRUNK_ITEM_STATUSES } from '../limits.mjs';
+import { formatRelation, line, printError } from '../format.mjs';
 
 export const meta = {
   name: 'trunk',
@@ -19,22 +20,6 @@ const SUB_USAGE = {
   confirm: 'sap trunk confirm --item <item_id> --by <名字> [--valid-from <ISO>]',
   retire: 'sap trunk retire --item <item_id> --by <名字>',
 };
-
-function line(out, label, value) {
-  if (value === undefined || value === null || value === '') return;
-  out(`  ${label}：${value}`);
-}
-
-/** 关系项可能是字符串或对象，统一格式化为可读文本。 */
-function formatRelation(relation) {
-  if (typeof relation === 'string') return relation;
-  if (relation && typeof relation === 'object') {
-    const type = relation.type ? `${relation.type} ` : '';
-    const itemId = relation.item_id ?? relation.itemId ?? '';
-    return `${type}${itemId}`.trim();
-  }
-  return String(relation);
-}
 
 function renderItem(out, item) {
   out(`主干条目 ${item.item_id}`);
@@ -68,7 +53,7 @@ async function runList(argv, io) {
   try {
     projectId = requireFlag(flags, 'project', '<id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.list}`);
     return 1;
   }
@@ -103,7 +88,7 @@ async function runList(argv, io) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -116,7 +101,7 @@ async function runShow(argv, io) {
   try {
     itemId = requireFlag(flags, 'item', '<item_id>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.show}`);
     return 1;
   }
@@ -150,7 +135,7 @@ async function runShow(argv, io) {
     }
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -167,7 +152,7 @@ async function runPropose(argv, io) {
     kind = requireFlag(flags, 'kind', '<类型>');
     statement = requireFlag(flags, 'statement', '<表述>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.propose}`);
     return 1;
   }
@@ -198,7 +183,7 @@ async function runPropose(argv, io) {
     out('提示：proposed 仅为建议，需 confirm 后才作为已确认前提生效。');
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -213,7 +198,7 @@ async function runConfirm(argv, io) {
     itemId = requireFlag(flags, 'item', '<item_id>');
     by = requireFlag(flags, 'by', '<名字>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.confirm}`);
     return 1;
   }
@@ -230,7 +215,7 @@ async function runConfirm(argv, io) {
     return 0;
   } catch (error) {
     // 非法流转（如对 active 再 confirm）由服务端 409 INVALID_TRANSITION 透出。
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -245,7 +230,7 @@ async function runRetire(argv, io) {
     itemId = requireFlag(flags, 'item', '<item_id>');
     by = requireFlag(flags, 'by', '<名字>');
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     err(`用法：${SUB_USAGE.retire}`);
     return 1;
   }
@@ -256,7 +241,7 @@ async function runRetire(argv, io) {
     out(`操作人：${by}`);
     return 0;
   } catch (error) {
-    err(error.message);
+    printError(error, err);
     return 1;
   }
 }
@@ -295,7 +280,7 @@ export async function run(argv, io = {}) {
   try {
     return await handler(rest, { out, err });
   } catch (error) {
-    err(error instanceof Error ? error.message : String(error));
+    printError(error, err);
     return 1;
   }
 }

@@ -12,10 +12,24 @@
 center/
   package.json
   bin/center.mjs     启动入口（环境变量、监听、优雅退出）
-  src/server.mjs     HTTP 路由与错误映射
-  src/schema.sql     建表语句
-  src/store.mjs      SQLite 访问层
-  src/init-db.mjs    建库脚本
+  src/
+    config.mjs       环境变量集中读取
+    store.mjs        存储门面（转发到 db/*，兼容旧引用）
+    server.mjs       HTTP 门面（转发到 http/server.mjs）
+    init-db.mjs      建库脚本
+    db/
+      schema.sql     建表语句（唯一来源）
+      store.mjs      连接、迁移、重置
+      json.mjs       编解码与错误工具
+      enums.mjs      状态与类型枚举
+      events.mjs      appendEvent / listEvents
+      projects.mjs  trunk.mjs  requirements.mjs
+      tasks.mjs     submissions.mjs  changes.mjs
+    http/
+      server.mjs     createServer、路由匹配、JSON 收发、错误映射
+      routes/        projects / trunk / requirements / tasks / submissions / changes
+    public/         （T9）托管 web/dist 构建产物
+    ai/             （T8）模型接入
   test/*.test.mjs    按层测试（store/requirement/task/submission/change/trunk）
   data/center.db     运行期生成（已忽略，不入库）
 ```
