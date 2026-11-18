@@ -137,4 +137,40 @@ export const api = {
     apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/release`, input, options),
   listClaims: (taskId, options) =>
     apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/claims`, undefined, options),
+
+  listSubmissions: (taskId, options) =>
+    apiRequest(
+      'GET',
+      `/tasks/${encodeURIComponent(taskId)}/submissions`,
+      undefined,
+      options,
+    ),
+  getSubmission: (submissionId, options) =>
+    apiRequest(
+      'GET',
+      `/submissions/${encodeURIComponent(submissionId)}`,
+      undefined,
+      options,
+    ),
+  createSubmission: (taskId, input, options) =>
+    apiRequest(
+      'POST',
+      `/tasks/${encodeURIComponent(taskId)}/submissions`,
+      input,
+      options,
+    ),
+  listReviews: (submissionId, options) =>
+    apiRequest(
+      'GET',
+      `/submissions/${encodeURIComponent(submissionId)}/reviews`,
+      undefined,
+      options,
+    ),
+  createReview: (submissionId, input, options) =>
+    apiRequest(
+      'POST',
+      `/submissions/${encodeURIComponent(submissionId)}/review`,
+      input,
+      options,
+    ),
 };

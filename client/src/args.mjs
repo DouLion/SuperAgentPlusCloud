@@ -50,3 +50,34 @@ export function optionalFlag(flags, name) {
   if (value === undefined || value === true || value === '') return undefined;
   return value;
 }
+
+/**
+ * 收集可重复旗标的全部取值（--key value 与 --key=value 都支持）。
+ * parseArgs 只保留最后一个值，重复旗标（如 --commit、--gap、--criterion）用此函数。
+ * @param {string[]} argv
+ * @param {string} name
+ * @returns {string[]}
+ */
+export function collectFlagValues(argv, name) {
+  const values = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token.startsWith('--')) continue;
+
+    const body = token.slice(2);
+    const eq = body.indexOf('=');
+    const key = eq === -1 ? body : body.slice(0, eq);
+    if (key !== name) continue;
+
+    if (eq !== -1) {
+      values.push(body.slice(eq + 1));
+      continue;
+    }
+    const next = argv[i + 1];
+    if (next !== undefined && !next.startsWith('--')) {
+      values.push(next);
+      i += 1;
+    }
+  }
+  return values;
+}

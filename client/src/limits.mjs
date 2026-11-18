@@ -33,3 +33,6 @@ export const TASK_STATUSES = [
 
 /** 认领状态。 */
 export const CLAIM_STATUSES = ['active', 'released', 'completed', 'expired'];
+
+/** 评审结论。 */
+export const REVIEW_CONCLUSIONS = ['confirm', 'reject', 'needs_info'];

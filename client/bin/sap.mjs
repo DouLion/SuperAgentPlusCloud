@@ -9,6 +9,8 @@ import { run as runShow } from '../src/commands/show.mjs';
 import { run as runTasks } from '../src/commands/tasks.mjs';
 import { run as runClaim } from '../src/commands/claim.mjs';
 import { run as runRelease } from '../src/commands/release.mjs';
+import { run as runDeliver } from '../src/commands/deliver.mjs';
+import { run as runReview } from '../src/commands/review.mjs';
 
 const args = process.argv.slice(2);
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -20,6 +22,8 @@ const handlers = new Map([
   ['tasks', runTasks],
   ['claim', runClaim],
   ['release', runRelease],
+  ['deliver', runDeliver],
+  ['review', runReview],
 ]);
 
 function main(argv) {

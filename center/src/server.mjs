@@ -22,6 +22,11 @@ import {
   claimTask,
   releaseTask,
   listClaims,
+  createSubmission,
+  getSubmission,
+  listSubmissions,
+  createReview,
+  listReviews,
 } from './store.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
@@ -218,6 +223,53 @@ export const ROUTES = [
     method: 'GET',
     pattern: '/tasks/:id/claims',
     handler: ({ params, db }) => listClaims(db, params.id),
+  },
+  {
+    method: 'GET',
+    pattern: '/tasks/:id/submissions',
+    handler: ({ params, db }) => {
+      if (!getTask(db, params.id)) {
+        return { status: 404, body: { ok: false, error: `任务不存在：${params.id}` } };
+      }
+      return listSubmissions(db, { task_id: params.id });
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/tasks/:id/submissions',
+    handler: ({ params, body, db }) => ({
+      status: 201,
+      body: createSubmission(db, { ...body, task_id: params.id }),
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/submissions/:id',
+    handler: ({ params, db }) => {
+      const submission = getSubmission(db, params.id);
+      if (!submission) {
+        return { status: 404, body: { ok: false, error: `提交不存在：${params.id}` } };
+      }
+      return submission;
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/submissions/:id/review',
+    handler: ({ params, body, db }) => ({
+      status: 201,
+      body: createReview(db, { ...body, submission_id: params.id }),
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/submissions/:id/reviews',
+    handler: ({ params, db }) => {
+      if (!getSubmission(db, params.id)) {
+        return { status: 404, body: { ok: false, error: `提交不存在：${params.id}` } };
+      }
+      return listReviews(db, params.id);
+    },
   },
   {
     method: 'POST',

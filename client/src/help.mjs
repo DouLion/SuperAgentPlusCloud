@@ -1,10 +1,20 @@
 // 客户端帮助文本与命令清单。
-// 已实现：submit / decide / show（T2）；其余为后续层占位。
+// 已实现：submit / decide / show / tasks / claim / release（T2/T3）；
+// deliver / review（T4）。
 
 export const DEFAULT_CENTER_URL = 'http://127.0.0.1:8787';
 
 /** 已实现并可执行的命令。 */
-export const IMPLEMENTED_COMMANDS = ['submit', 'decide', 'show', 'tasks', 'claim', 'release'];
+export const IMPLEMENTED_COMMANDS = [
+  'submit',
+  'decide',
+  'show',
+  'tasks',
+  'claim',
+  'release',
+  'deliver',
+  'review',
+];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
 export const PLANNED_COMMANDS = [
@@ -22,8 +32,8 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'show',
-    usage: 'sap show --requirement <req_id>',
-    desc: '查看需求、评估、决定与时间线',
+    usage: 'sap show --requirement <req_id> | sap show --task <task_id>',
+    desc: '查看需求时间线，或任务、认领、提交与评审全链',
     implemented: true,
   },
   {
@@ -46,15 +56,15 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'deliver',
-    usage: 'sap deliver --task <task_id> --commit <repo@hash> [--summary ...]',
-    desc: '提交成果：commit 引用与自测证据',
-    implemented: false,
+    usage: 'sap deliver --task <task_id> --worker <worker_id> --commit <repo@hash> [--summary ...] [--self-test ...] [--gap ...]',
+    desc: '提交成果：commit 引用、自测与已知缺口',
+    implemented: true,
   },
   {
     name: 'review',
-    usage: 'sap review --submission <sub_id> --conclusion <confirm|reject|needs_info>',
-    desc: '按完成条件逐项评审',
-    implemented: false,
+    usage: 'sap review --submission <sub_id> --reviewer <reviewer_id> --conclusion <confirm|reject|needs_info> [--criterion "条件=结果" ...] [--reason ...]',
+    desc: '按完成条件逐项评审（确认/打回/待补充）',
+    implemented: true,
   },
   {
     name: 'trunk',
@@ -83,6 +93,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T3 任务与认领 —— submit / decide / show / tasks / claim / release 可用；提交与评审见后续层（T4+）。',
+    '当前进度：T4 提交与评审 —— submit / decide / show / tasks / claim / release / deliver / review 可用；主干变更见后续层（T5+）。',
   ].join('\n');
 }
