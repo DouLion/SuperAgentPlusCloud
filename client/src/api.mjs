@@ -117,4 +117,24 @@ export const api = {
       undefined,
       options,
     ),
+
+  listTasks: (query, options) =>
+    apiRequest('GET', `/tasks${queryString(query)}`, undefined, options),
+  getTask: (taskId, options) =>
+    apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}`, undefined, options),
+  createTask: (input, options) => apiRequest('POST', '/tasks', input, options),
+  createRequirementTasks: (requirementId, input, options) =>
+    apiRequest(
+      'POST',
+      `/requirements/${encodeURIComponent(requirementId)}/tasks`,
+      input,
+      options,
+    ),
+
+  claimTask: (taskId, input, options) =>
+    apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/claim`, input, options),
+  releaseTask: (taskId, input, options) =>
+    apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/release`, input, options),
+  listClaims: (taskId, options) =>
+    apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/claims`, undefined, options),
 };

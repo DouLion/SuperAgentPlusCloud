@@ -6,6 +6,9 @@ import { buildHelp, PLANNED_COMMANDS, DEFAULT_CENTER_URL } from '../src/help.mjs
 import { run as runSubmit } from '../src/commands/submit.mjs';
 import { run as runDecide } from '../src/commands/decide.mjs';
 import { run as runShow } from '../src/commands/show.mjs';
+import { run as runTasks } from '../src/commands/tasks.mjs';
+import { run as runClaim } from '../src/commands/claim.mjs';
+import { run as runRelease } from '../src/commands/release.mjs';
 
 const args = process.argv.slice(2);
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -14,6 +17,9 @@ const handlers = new Map([
   ['submit', runSubmit],
   ['decide', runDecide],
   ['show', runShow],
+  ['tasks', runTasks],
+  ['claim', runClaim],
+  ['release', runRelease],
 ]);
 
 function main(argv) {

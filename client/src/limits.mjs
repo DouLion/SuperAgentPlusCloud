@@ -18,3 +18,18 @@ export const REQUIREMENT_STATUSES = [
   'rejected',
   'cancelled',
 ];
+
+/** 任务状态：draft → open → claimed → submitted → accepted → closed。 */
+export const TASK_STATUSES = [
+  'draft',
+  'open',
+  'claimed',
+  'submitted',
+  'rework',
+  'accepted',
+  'closed',
+  'cancelled',
+];
+
+/** 认领状态。 */
+export const CLAIM_STATUSES = ['active', 'released', 'completed', 'expired'];

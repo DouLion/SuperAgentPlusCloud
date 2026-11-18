@@ -4,7 +4,7 @@
 export const DEFAULT_CENTER_URL = 'http://127.0.0.1:8787';
 
 /** 已实现并可执行的命令。 */
-export const IMPLEMENTED_COMMANDS = ['submit', 'decide', 'show'];
+export const IMPLEMENTED_COMMANDS = ['submit', 'decide', 'show', 'tasks', 'claim', 'release'];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
 export const PLANNED_COMMANDS = [
@@ -28,15 +28,21 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'tasks',
-    usage: 'sap tasks --project <id> [--status open]',
+    usage: 'sap tasks --project <id> [--status open|claimed|...] [--requirement <id>]',
     desc: '查看任务列表与完成条件',
-    implemented: false,
+    implemented: true,
   },
   {
     name: 'claim',
     usage: 'sap claim --task <task_id> --worker <worker_id>',
     desc: '认领任务（互斥、原子）',
-    implemented: false,
+    implemented: true,
+  },
+  {
+    name: 'release',
+    usage: 'sap release --task <task_id> --worker <worker_id>',
+    desc: '释放自己认领的任务，使其回到可认领状态',
+    implemented: true,
   },
   {
     name: 'deliver',
@@ -77,6 +83,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T2 需求与定级 —— submit / decide / show 可用；任务与评审见后续层（T3+）。',
+    '当前进度：T3 任务与认领 —— submit / decide / show / tasks / claim / release 可用；提交与评审见后续层（T4+）。',
   ].join('\n');
 }

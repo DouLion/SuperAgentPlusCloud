@@ -15,6 +15,13 @@ import {
   createDecision,
   listDecisions,
   listRequirementTimeline,
+  createTask,
+  getTask,
+  listTasks,
+  openTask,
+  claimTask,
+  releaseTask,
+  listClaims,
 } from './store.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
@@ -159,6 +166,86 @@ export const ROUTES = [
       body: createDecision(db, { ...body, requirement_id: params.id }),
     }),
   },
+
+  {
+    method: 'GET',
+    pattern: '/tasks',
+    handler: ({ url, db }) => {
+      const query = {};
+      for (const key of ['project_id', 'status', 'requirement_id']) {
+        const value = url.searchParams.get(key);
+        if (value) query[key] = value;
+      }
+      return listTasks(db, query);
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/tasks',
+    handler: ({ body, db }) => {
+      const task = createTask(db, body);
+      return { status: 201, body: openTask(db, task.task_id, { actor: body.created_by }) };
+    },
+  },
+  {
+    method: 'GET',
+    pattern: '/tasks/:id',
+    handler: ({ params, db }) => {
+      const task = getTask(db, params.id);
+      if (!task) {
+        return { status: 404, body: { ok: false, error: `任务不存在：${params.id}` } };
+      }
+      return task;
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/tasks/:id/claim',
+    handler: ({ params, body, db }) => ({
+      status: 201,
+      body: claimTask(db, params.id, body.worker_id ?? body.workerId),
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/tasks/:id/release',
+    handler: ({ params, body, db }) => ({
+      status: 201,
+      body: releaseTask(db, params.id, body.worker_id ?? body.workerId),
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/tasks/:id/claims',
+    handler: ({ params, db }) => listClaims(db, params.id),
+  },
+  {
+    method: 'POST',
+    pattern: '/requirements/:id/tasks',
+    handler: ({ params, body, db }) => {
+      const requirement = getRequirement(db, params.id);
+      if (!requirement) {
+        return { status: 404, body: { ok: false, error: `需求不存在：${params.id}` } };
+      }
+      const tasks = body.tasks;
+      if (!Array.isArray(tasks)) {
+        return { status: 400, body: { ok: false, error: '缺少必填字段：tasks（必须是数组）' } };
+      }
+      const createdBy = body.created_by ?? body.createdBy;
+      const created = tasks.map((item) => {
+        const task = createTask(db, {
+          ...item,
+          // 批量拆解不要求调用方重复提供 project_id，按需求所属项目落库。
+          project_id: requirement.project_id,
+          requirement_id: requirement.requirement_id,
+          created_by: createdBy,
+        });
+        // 拆解完成即进入可认领状态。
+        return openTask(db, task.task_id, { actor: createdBy, reason: '任务拆解后开放' });
+      });
+      return { status: 201, body: created };
+    },
+  },
 ];
 
 function sendJson(res, status, body, extraHeaders = {}) {
@@ -243,9 +330,11 @@ export function createServer(db, options = {}) {
         sendJson(res, 200, result);
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       sendJson(res, statusForError(err), {
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: message,
+        ...(err && typeof err.code === 'string' ? { code: err.code } : {}),
       });
     }
   });
