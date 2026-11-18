@@ -265,4 +265,30 @@ export const api = {
     ),
   listAiSuggestions: (query, options) =>
     apiRequest('GET', `/ai/suggestions${queryString(query)}`, undefined, options),
+
+  listConventionPacks: (query, options) =>
+    apiRequest('GET', `/convention-packs${queryString(query)}`, undefined, options),
+  getConventionPack: (id, options) =>
+    apiRequest('GET', `/convention-packs/${encodeURIComponent(id)}`, undefined, options),
+  createConventionPack: (input, options) =>
+    apiRequest('POST', '/convention-packs', input, options),
+  activateConventionPack: (id, input, options) =>
+    apiRequest('POST', `/convention-packs/${encodeURIComponent(id)}/activate`, input, options),
+  retireConventionPack: (id, input, options) =>
+    apiRequest('POST', `/convention-packs/${encodeURIComponent(id)}/retire`, input, options),
+  importConventionPack: (id, input, options) =>
+    apiRequest('POST', `/convention-packs/${encodeURIComponent(id)}/import`, input, options),
+
+  listWorkflowTemplates: (query, options) =>
+    apiRequest('GET', `/workflow-templates${queryString(query)}`, undefined, options),
+  getWorkflowTemplate: (id, options) =>
+    apiRequest('GET', `/workflow-templates/${encodeURIComponent(id)}`, undefined, options),
+  createWorkflowTemplate: (input, options) =>
+    apiRequest('POST', '/workflow-templates', input, options),
+  activateWorkflowTemplate: (id, input, options) =>
+    apiRequest('POST', `/workflow-templates/${encodeURIComponent(id)}/activate`, input, options),
+  retireWorkflowTemplate: (id, input, options) =>
+    apiRequest('POST', `/workflow-templates/${encodeURIComponent(id)}/retire`, input, options),
+  seedWorkflowTemplates: (input = {}, options) =>
+    apiRequest('POST', '/workflow-templates/seed', input, options),
 };

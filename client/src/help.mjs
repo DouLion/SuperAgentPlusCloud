@@ -21,6 +21,8 @@ export const IMPLEMENTED_COMMANDS = [
   'advise',
   'plan',
   'impacts',
+  'convention',
+  'workflow',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -113,6 +115,18 @@ export const PLANNED_COMMANDS = [
     name: 'impacts',
     usage: 'sap impacts --change <chg_id>',
     desc: '生成主干变更的影响候选；仅候选，不登记影响项',
+    implemented: true,
+  },
+  {
+    name: 'convention',
+    usage: 'sap convention list|show|create|activate|retire|import ...',
+    desc: '约定包：团队模板、项目快照、激活、退役与导入',
+    implemented: true,
+  },
+  {
+    name: 'workflow',
+    usage: 'sap workflow list|show|create|activate|retire|seed ...',
+    desc: '编排模板：版本状态、DAG 校验与内置 contract-first-api',
     implemented: true,
   },
 ];

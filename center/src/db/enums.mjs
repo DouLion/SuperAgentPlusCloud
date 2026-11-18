@@ -82,3 +82,8 @@ export const IMPACT_RESOLUTIONS = ['continue', 'adjust', 'revalidate', 'obsolete
 
 /** AI 建议类型：评估建议 / 任务拆解草稿 / 影响候选。 */
 export const AI_SUGGESTION_KINDS = ['assessment', 'task_plan', 'impact'];
+
+/** 约定包 / 编排模板共用版本状态。 */
+export const VERSIONED_DEFINITION_STATUSES = ['draft', 'active', 'superseded', 'retired'];
+export const CONVENTION_PACK_SCOPES = ['team', 'project'];
+export const CONVENTION_RULE_SEVERITIES = ['must', 'should', 'preference'];

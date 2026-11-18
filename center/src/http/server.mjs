@@ -14,6 +14,8 @@ import { ROUTES as SUBMISSION_ROUTES } from './routes/submissions.mjs';
 import { ROUTES as AI_ROUTES } from './routes/ai.mjs';
 import { ROUTES as EVENT_ROUTES } from './routes/events.mjs';
 import { ROUTES as SETUP_ROUTES } from './routes/setup.mjs';
+import { ROUTES as CONVENTION_ROUTES } from './routes/conventions.mjs';
+import { ROUTES as WORKFLOW_ROUTES } from './routes/workflows.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
 export function segments(pathname) {
@@ -73,6 +75,8 @@ export const ROUTES = [
   ...AI_ROUTES,
   ...EVENT_ROUTES,
   ...SETUP_ROUTES,
+  ...CONVENTION_ROUTES,
+  ...WORKFLOW_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */

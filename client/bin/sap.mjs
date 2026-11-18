@@ -17,6 +17,8 @@ import { run as runTrunk } from '../src/commands/trunk.mjs';
 import { run as runAdvise } from '../src/commands/advise.mjs';
 import { run as runPlan } from '../src/commands/plan.mjs';
 import { run as runImpacts } from '../src/commands/impacts.mjs';
+import { run as runConvention } from '../src/commands/convention.mjs';
+import { run as runWorkflow } from '../src/commands/workflow.mjs';
 
 const args = process.argv.slice(2);
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -36,6 +38,8 @@ const handlers = new Map([
   ['advise', runAdvise],
   ['plan', runPlan],
   ['impacts', runImpacts],
+  ['convention', runConvention],
+  ['workflow', runWorkflow],
 ]);
 
 function main(argv) {

@@ -274,3 +274,51 @@ CREATE INDEX IF NOT EXISTS idx_ai_suggestions_requirement
   ON ai_suggestions (requirement_id);
 CREATE INDEX IF NOT EXISTS idx_ai_suggestions_change
   ON ai_suggestions (change_id);
+
+-- 团队/项目约定包（T12）-----------------------------------------------------
+-- 团队模板可被多个项目导入；导入后形成独立项目快照，不随模板自动覆盖。
+CREATE TABLE IF NOT EXISTS convention_packs (
+  pack_id       TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  description   TEXT,
+  status        TEXT NOT NULL DEFAULT 'draft'
+                CHECK (status IN ('draft', 'active', 'superseded', 'retired')),
+  version       INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+  scope         TEXT NOT NULL CHECK (scope IN ('team', 'project')),
+  project_id    TEXT REFERENCES projects (project_id),
+  rules         TEXT NOT NULL DEFAULT '[]',
+  created_by    TEXT,
+  created_at    TEXT NOT NULL,
+  activated_at  TEXT,
+  supersedes    TEXT REFERENCES convention_packs (pack_id),
+  imported_from TEXT REFERENCES convention_packs (pack_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_convention_packs_scope_status
+  ON convention_packs (scope, status);
+CREATE INDEX IF NOT EXISTS idx_convention_packs_project_status
+  ON convention_packs (project_id, status);
+
+-- 编排模板（T12）-------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS workflow_templates (
+  template_id  TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  status       TEXT NOT NULL DEFAULT 'draft'
+               CHECK (status IN ('draft', 'active', 'superseded', 'retired')),
+  version      INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+  project_id   TEXT REFERENCES projects (project_id),
+  kind         TEXT NOT NULL,
+  nodes        TEXT NOT NULL DEFAULT '[]',
+  created_by   TEXT,
+  created_at   TEXT NOT NULL,
+  activated_at TEXT,
+  supersedes   TEXT REFERENCES workflow_templates (template_id),
+  built_in     INTEGER NOT NULL DEFAULT 0 CHECK (built_in IN (0, 1))
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_project_status
+  ON workflow_templates (project_id, status);
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_kind_status
+  ON workflow_templates (kind, status);
+
