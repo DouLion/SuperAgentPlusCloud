@@ -1,6 +1,7 @@
 // 客户端帮助文本与命令清单。
 // 已实现：submit / decide / show / tasks / claim / release（T2/T3）；
-// deliver / review（T4）；change / impact（T5）；trunk（T6）。
+// deliver / review（T4）；change / impact（T5）；trunk（T6）；
+// advise / plan / impacts（T8，需 Center 配置模型）。
 
 export const DEFAULT_CENTER_URL = 'http://127.0.0.1:8787';
 
@@ -17,6 +18,9 @@ export const IMPLEMENTED_COMMANDS = [
   'trunk',
   'change',
   'impact',
+  'advise',
+  'plan',
+  'impacts',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -93,6 +97,24 @@ export const PLANNED_COMMANDS = [
     desc: '影响对象登记与逐项处置（区分待检查与确认无影响）',
     implemented: true,
   },
+  {
+    name: 'advise',
+    usage: 'sap advise --requirement <req_id>',
+    desc: '生成评估建议（等级、关联条目、影响摘要、不确定项、建议动作）；建议未生效',
+    implemented: true,
+  },
+  {
+    name: 'plan',
+    usage: 'sap plan --requirement <req_id>',
+    desc: '生成任务拆解草稿（purpose、done_when、服务条目）；草稿未生效',
+    implemented: true,
+  },
+  {
+    name: 'impacts',
+    usage: 'sap impacts --change <chg_id>',
+    desc: '生成主干变更的影响候选；仅候选，不登记影响项',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -108,6 +130,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T6 端到端 —— submit / decide / show / tasks / claim / release / deliver / review / trunk / change / impact 可用。',
+    '当前进度：T8 模型 —— submit / decide / show / tasks / claim / release / deliver / review / trunk / change / impact / advise / plan / impacts 可用；未配置模型时 AI 命令返回中文提示。',
   ].join('\n');
 }

@@ -8,6 +8,7 @@ import { ROUTES as CHANGE_ROUTES } from './routes/changes.mjs';
 import { ROUTES as REQUIREMENT_ROUTES } from './routes/requirements.mjs';
 import { ROUTES as TASK_ROUTES } from './routes/tasks.mjs';
 import { ROUTES as SUBMISSION_ROUTES } from './routes/submissions.mjs';
+import { ROUTES as AI_ROUTES } from './routes/ai.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
 export function segments(pathname) {
@@ -64,6 +65,7 @@ export const ROUTES = [
   ...REQUIREMENT_ROUTES,
   ...TASK_ROUTES,
   ...SUBMISSION_ROUTES,
+  ...AI_ROUTES,
 ];
 
 export function sendJson(res, status, body, extraHeaders = {}) {

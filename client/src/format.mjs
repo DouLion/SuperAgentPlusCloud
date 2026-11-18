@@ -48,3 +48,15 @@ export function printTimeline(out, events) {
 export function printError(err, errOut) {
   errOut(err instanceof Error ? err.message : String(err));
 }
+
+/**
+ * 打印 AI 相关错误。未配置模型时给出可操作的中文提示，
+ * 其余错误原样透出服务端信息。
+ */
+export function printAiError(err, errOut) {
+  if (err && err.code === 'AI_NOT_CONFIGURED') {
+    errOut('Center 未配置模型：请设置 SAP_LLM_BASE_URL 与 SAP_LLM_API_KEY');
+    return;
+  }
+  printError(err, errOut);
+}

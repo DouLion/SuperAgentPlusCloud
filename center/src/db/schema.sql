@@ -253,3 +253,24 @@ CREATE INDEX IF NOT EXISTS idx_events_project ON events (project_id);
 CREATE INDEX IF NOT EXISTS idx_events_object
   ON events (object_type, object_id);
 CREATE INDEX IF NOT EXISTS idx_events_type ON events (event_type);
+
+-- AI 建议（T8）-------------------------------------------------------------
+-- 只保存模型产出的建议/草稿与原始响应，不改变任何业务状态。
+CREATE TABLE IF NOT EXISTS ai_suggestions (
+  suggestion_id  TEXT PRIMARY KEY,
+  project_id     TEXT NOT NULL,
+  requirement_id TEXT,
+  change_id      TEXT,
+  kind           TEXT NOT NULL CHECK (kind IN ('assessment', 'task_plan', 'impact')),
+  payload        TEXT NOT NULL,
+  raw_response   TEXT,
+  model          TEXT,
+  created_at     TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_suggestions_project
+  ON ai_suggestions (project_id);
+CREATE INDEX IF NOT EXISTS idx_ai_suggestions_requirement
+  ON ai_suggestions (requirement_id);
+CREATE INDEX IF NOT EXISTS idx_ai_suggestions_change
+  ON ai_suggestions (change_id);

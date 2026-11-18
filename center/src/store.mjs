@@ -12,3 +12,4 @@ export * from './db/requirements.mjs';
 export * from './db/tasks.mjs';
 export * from './db/submissions.mjs';
 export * from './db/changes.mjs';
+export * from './db/ai.mjs';

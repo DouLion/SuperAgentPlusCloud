@@ -130,6 +130,10 @@ npm run e2e    # = node client/bin/e2e.mjs
 | `CENTER_PORT` | `8787` | HTTP 监听端口 |
 | `CENTER_HOST` | `127.0.0.1` | HTTP 监听地址 |
 | `CENTER_DB` | `center/data/center.db`（相对包目录） | SQLite 文件路径 |
+| `SAP_LLM_BASE_URL` | 空 | OpenAI 兼容根地址，如 `https://api.deepseek.com`；为空则 AI 功能不可用 |
+| `SAP_LLM_API_KEY` | 空 | 模型 API Key；与 `SAP_LLM_BASE_URL` 同时非空才启用 AI 功能 |
+| `SAP_LLM_MODEL` | `deepseek-chat` | 模型名 |
+| `SAP_LLM_TIMEOUT_MS` | `30000` | 模型请求超时（毫秒） |
 
 示例：
 

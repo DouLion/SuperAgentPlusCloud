@@ -79,3 +79,6 @@ export const IMPACT_ASSESSMENT_STATUSES = ['to_check', 'affected', 'not_affected
 
 /** 影响处置方式；pending 表示尚未处置。 */
 export const IMPACT_RESOLUTIONS = ['continue', 'adjust', 'revalidate', 'obsolete', 'pending'];
+
+/** AI 建议类型：评估建议 / 任务拆解草稿 / 影响候选。 */
+export const AI_SUGGESTION_KINDS = ['assessment', 'task_plan', 'impact'];

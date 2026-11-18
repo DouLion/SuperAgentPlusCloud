@@ -236,4 +236,30 @@ export const api = {
       patch,
       options,
     ),
+
+  // AI 建议（T8）：只读/生成建议，不改变业务状态。
+  getAiHealth: (options) => apiRequest('GET', '/ai/health', undefined, options),
+  adviseRequirement: (requirementId, options) =>
+    apiRequest(
+      'POST',
+      `/requirements/${encodeURIComponent(requirementId)}/advice`,
+      {},
+      options,
+    ),
+  planRequirement: (requirementId, options) =>
+    apiRequest(
+      'POST',
+      `/requirements/${encodeURIComponent(requirementId)}/plan`,
+      {},
+      options,
+    ),
+  adviseTrunkChange: (changeId, options) =>
+    apiRequest(
+      'POST',
+      `/trunk-changes/${encodeURIComponent(changeId)}/advice`,
+      {},
+      options,
+    ),
+  listAiSuggestions: (query, options) =>
+    apiRequest('GET', `/ai/suggestions${queryString(query)}`, undefined, options),
 };

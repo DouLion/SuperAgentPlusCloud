@@ -14,6 +14,9 @@ import { run as runReview } from '../src/commands/review.mjs';
 import { run as runChange } from '../src/commands/change.mjs';
 import { run as runImpact } from '../src/commands/impact.mjs';
 import { run as runTrunk } from '../src/commands/trunk.mjs';
+import { run as runAdvise } from '../src/commands/advise.mjs';
+import { run as runPlan } from '../src/commands/plan.mjs';
+import { run as runImpacts } from '../src/commands/impacts.mjs';
 
 const args = process.argv.slice(2);
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -30,6 +33,9 @@ const handlers = new Map([
   ['change', runChange],
   ['impact', runImpact],
   ['trunk', runTrunk],
+  ['advise', runAdvise],
+  ['plan', runPlan],
+  ['impacts', runImpacts],
 ]);
 
 function main(argv) {
