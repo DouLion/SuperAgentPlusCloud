@@ -23,6 +23,7 @@ export const IMPLEMENTED_COMMANDS = [
   'impacts',
   'convention',
   'workflow',
+  'artifact',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -129,6 +130,12 @@ export const PLANNED_COMMANDS = [
     desc: '编排模板：版本状态、DAG 校验与内置 contract-first-api',
     implemented: true,
   },
+  {
+    name: 'artifact',
+    usage: 'sap artifact list|show|create|validate|publish|retire|doc ...',
+    desc: '项目制品：API 契约、文档与 Mock 的版本、校验和发布',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -144,6 +151,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T8 模型 —— submit / decide / show / tasks / claim / release / deliver / review / trunk / change / impact / advise / plan / impacts 可用；未配置模型时 AI 命令返回中文提示。',
+    '当前进度：T13 制品与接口契约 —— 核心链、AI 建议、约定包、编排模板、Artifact、OpenAPI 校验、同源文档与 Mock 可用。',
   ].join('\n');
 }

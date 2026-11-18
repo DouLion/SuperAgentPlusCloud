@@ -10,8 +10,10 @@
 - `src/http/routes/*.mjs`：按领域拆分路由（projects / trunk / requirements / tasks / submissions / changes）。
 - `src/db/store.mjs`：连接、迁移、重置；`src/db/schema.sql` 是唯一建表来源。
 - `src/db/json.mjs`、`enums.mjs`、`events.mjs`：工具、枚举、事件。
-- `src/db/{projects,trunk,requirements,tasks,submissions,changes}.mjs`：各领域数据访问。
-- `src/ai/`：模型接入（T8），只产出建议，不产生已生效状态。
+- `src/db/{projects,trunk,requirements,tasks,submissions,changes}.mjs`：核心链数据访问。
+- `src/db/{conventions,workflows,definition-events}.mjs`：T12 约定包、编排模板与全局定义事件。
+- `src/db/artifacts.mjs`、`src/contracts/openapi.mjs`：T13 项目制品、OpenAPI 校验、同源文档与 Mock。
+- `src/ai/`：模型接入（T8），只产出建议，不产生已生效状态。T14 未授权前不得让 AI 自动创建任务。
 - `src/public/`：托管前端构建产物（T9）。
 - `src/store.mjs`、`src/server.mjs`：兼容旧引用的**门面**，新代码请直接引用 `db/*` 与 `http/*`。
 - `test/*.test.mjs`：按层新增测试文件，如 `test/requirement.test.mjs`。

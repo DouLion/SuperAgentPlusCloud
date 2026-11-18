@@ -16,6 +16,8 @@ import { ROUTES as EVENT_ROUTES } from './routes/events.mjs';
 import { ROUTES as SETUP_ROUTES } from './routes/setup.mjs';
 import { ROUTES as CONVENTION_ROUTES } from './routes/conventions.mjs';
 import { ROUTES as WORKFLOW_ROUTES } from './routes/workflows.mjs';
+import { ROUTES as ARTIFACT_ROUTES } from './routes/artifacts.mjs';
+import { ROUTES as MOCK_ROUTES } from './routes/mock.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
 export function segments(pathname) {
@@ -35,12 +37,18 @@ export function matchRoute(routeList, method, pathname) {
 
   for (const candidate of routeList) {
     const patternParts = segments(candidate.pattern);
-    if (patternParts.length !== parts.length) continue;
+    const hasWildcard = patternParts.at(-1)?.startsWith('*');
+    if ((!hasWildcard && patternParts.length !== parts.length)
+      || (hasWildcard && parts.length < patternParts.length - 1)) continue;
 
     const matched = {};
     let ok = true;
     for (let i = 0; i < patternParts.length; i += 1) {
       const patternPart = patternParts[i];
+      if (patternPart.startsWith('*')) {
+        matched[patternPart.slice(1)] = parts.slice(i).map(decodeURIComponent).join('/');
+        break;
+      }
       if (patternPart.startsWith(':')) {
         matched[patternPart.slice(1)] = decodeURIComponent(parts[i]);
       } else if (patternPart !== parts[i]) {
@@ -50,8 +58,8 @@ export function matchRoute(routeList, method, pathname) {
     }
     if (!ok) continue;
 
-    allowed.add(candidate.method);
-    if (candidate.method === method) {
+    allowed.add(candidate.method === '*' ? method : candidate.method);
+    if (candidate.method === method || candidate.method === '*') {
       route = candidate;
       params = matched;
     }
@@ -77,6 +85,8 @@ export const ROUTES = [
   ...SETUP_ROUTES,
   ...CONVENTION_ROUTES,
   ...WORKFLOW_ROUTES,
+  ...ARTIFACT_ROUTES,
+  ...MOCK_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */
@@ -297,14 +307,22 @@ async function handleApiRequest(req, res, routes, db, url, pathForMessage) {
   const body = await readJsonBody(req);
   const result = await route.handler({ req, url, body, params, db });
 
-  // 只有显式给出数字 status 且带 body 才视为响应包装；
-  // 否则视为普通数据行（业务行可能自身含有 status 字段）。
-  if (
+  // 显式 raw 包装返回非 JSON（接口文档）；显式 body 包装返回 JSON；
+  // 其余视为普通数据行（业务行可能自身含有 status 字段）。
+  if (result && typeof result.status === 'number' && Object.prototype.hasOwnProperty.call(result, 'raw')) {
+    const data = Buffer.from(String(result.raw), 'utf8');
+    res.writeHead(result.status, {
+      'content-type': result.content_type || 'text/plain; charset=utf-8',
+      'content-length': data.length,
+      ...(result.headers || {}),
+    });
+    res.end(req.method === 'HEAD' ? undefined : data);
+  } else if (
     result
     && typeof result.status === 'number'
     && Object.prototype.hasOwnProperty.call(result, 'body')
   ) {
-    sendJson(res, result.status, result.body);
+    sendJson(res, result.status, result.body, result.headers || {});
   } else {
     sendJson(res, 200, result);
   }

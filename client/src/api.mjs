@@ -291,4 +291,16 @@ export const api = {
     apiRequest('POST', `/workflow-templates/${encodeURIComponent(id)}/retire`, input, options),
   seedWorkflowTemplates: (input = {}, options) =>
     apiRequest('POST', '/workflow-templates/seed', input, options),
+
+  listArtifacts: (query, options) =>
+    apiRequest('GET', `/artifacts${queryString(query)}`, undefined, options),
+  getArtifact: (id, options) =>
+    apiRequest('GET', `/artifacts/${encodeURIComponent(id)}`, undefined, options),
+  createArtifact: (input, options) => apiRequest('POST', '/artifacts', input, options),
+  validateArtifact: (id, options) =>
+    apiRequest('GET', `/artifacts/${encodeURIComponent(id)}/validate`, undefined, options),
+  publishArtifact: (id, input, options) =>
+    apiRequest('POST', `/artifacts/${encodeURIComponent(id)}/publish`, input, options),
+  retireArtifact: (id, input, options) =>
+    apiRequest('POST', `/artifacts/${encodeURIComponent(id)}/retire`, input, options),
 };

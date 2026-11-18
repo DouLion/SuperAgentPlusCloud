@@ -5,7 +5,7 @@
 
 - 运行时：Node.js v26+，全部 ESM。
 - 依赖：零第三方依赖，仅 Node 内置模块。
-- 当前进度：**T0–T6**，`trunk` 命令已实现，端到端脚本可通过 `npm run e2e` 运行。
+- 当前进度：**T0–T13**，核心链、AI 建议、约定包、编排模板、Artifact/OpenAPI 校验与文档/Mock 命令可用。
 
 ## 安装与运行
 
@@ -45,6 +45,10 @@ node bin/sap.mjs --help
 | `trunk` | 主干条目：查看、提出、确认生效、退役 | T6 |
 | `change` | 主干变更：发起、确认、生效、关闭 | T5 |
 | `impact` | 影响项登记与逐项处置 | T5 |
+| `advise` / `plan` / `impacts` | 模型评估、任务草稿、影响候选（均未生效） | T8 |
+| `convention` | 团队/项目约定包、模板导入、版本状态 | T12 |
+| `workflow` | 编排模板 DAG 与内置 contract-first-api | T12 |
+| `artifact` | 项目制品、OpenAPI 校验、发布、文档 URL | T13 |
 
 ### trunk 命令
 

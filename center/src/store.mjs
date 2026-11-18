@@ -16,3 +16,4 @@ export * from './db/ai.mjs';
 export * from './db/definition-events.mjs';
 export * from './db/conventions.mjs';
 export * from './db/workflows.mjs';
+export * from './db/artifacts.mjs';

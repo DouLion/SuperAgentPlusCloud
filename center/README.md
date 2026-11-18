@@ -1,7 +1,7 @@
 # SuperAgentPlus Center
 
 中心服务：保存项目权威主干记录、需求、评估、决定、任务、提交、评审与事件历史。
-当前进度：**T0–T6**（存储与 HTTP 路由可用；主干条目支持 proposed/active/superseded/retired 与确认、退役；端到端脚本可跑通完整链路）。
+当前进度：**T0–T13**（核心链、主干变更、模型建议、面板/初始化、约定包、编排模板、项目制品、OpenAPI 校验、同源接口文档与 Mock 可用）。
 
 - 运行时：Node.js v26+（本机 v26.12.1），全部 ESM。
 - 依赖：零第三方依赖，仅 Node 内置模块（`node:http`、`node:sqlite`、`node:test`、`node:fs`、`node:path`、`node:url`、`node:crypto`）。
@@ -25,6 +25,9 @@ center/
       events.mjs      appendEvent / listEvents
       projects.mjs  trunk.mjs  requirements.mjs
       tasks.mjs     submissions.mjs  changes.mjs
+      conventions.mjs  workflows.mjs  artifacts.mjs  definition-events.mjs
+    contracts/
+      openapi.mjs     OpenAPI 约定校验、HTML 文档与 Mock 生成
     http/
       server.mjs     createServer、路由匹配、JSON 收发、错误映射
       routes/        projects / trunk / requirements / tasks / submissions / changes
@@ -70,6 +73,16 @@ center/
 | `POST` | `/trunk-changes/:id/close` | in_effect → closed（须完成影响处置） |
 | `GET/POST` | `/trunk-changes/:id/impacts` | 影响项列表 / 登记 |
 | `PATCH` | `/impact-items/:id` | 更新影响项评估与处置 |
+| `GET/POST` | `/convention-packs` | 约定包列表 / 创建团队模板或项目快照 |
+| `POST` | `/convention-packs/:id/activate` | 激活约定包（actor + reason 必填） |
+| `POST` | `/convention-packs/:id/import` | 把 active 团队模板导入项目为独立快照 |
+| `GET/POST` | `/workflow-templates` | 编排模板列表 / 创建 DAG 模板 |
+| `POST` | `/workflow-templates/seed` | 创建内置 contract-first-api 模板 |
+| `GET/POST` | `/artifacts` | 项目制品列表 / 创建草稿 |
+| `GET` | `/artifacts/:id/validate` | 按项目 active 约定校验 API 契约 |
+| `POST` | `/artifacts/:id/publish` | 校验通过后发布；must 违规返回 422 |
+| `GET` | `/artifacts/:id/document` | 从 API 契约即时渲染 HTML 文档 |
+| `*` | `/mock/:projectId/*` | 从已发布 API 契约生成只读 Mock 响应 |
 
 错误约定：业务校验失败 400；状态冲突 409（响应带 `code`，如 `TASK_NOT_CLAIMABLE`、`TASK_NOT_LINKED`、`CHANGE_IMPACT_UNRESOLVED`、`INVALID_TRANSITION`）；路径存在但方法不符 405（带 `Allow`）；其余 500。
 
