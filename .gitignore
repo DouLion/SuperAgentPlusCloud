@@ -6,4 +6,5 @@ node_modules/
 web/node_modules/
 web/dist/
 center/data/
+center/config.json
 *.db

@@ -11,6 +11,20 @@ const projects = ref([]);
 const selectedProjectId = ref(localStorage.getItem('sap.projectId') || '');
 const ai = ref({ configured: false, model: '', base_url: '' });
 const aiLoading = ref(false);
+const setupInitialized = ref(true);
+
+async function loadSetupStatus() {
+  try {
+    const status = await api.setupStatus();
+    setupInitialized.value = status.initialized;
+    // 未初始化时进入设置向导（根路径会经redirect 落到这里）。
+    if (!status.initialized && route.path !== '/setup') {
+      router.replace('/setup');
+    }
+  } catch {
+    // 状态接口不可用时保持现状，不打断面板使用。
+  }
+}
 
 async function loadProjects() {
   try {
@@ -34,6 +48,7 @@ async function loadAiHealth() {
 onMounted(() => {
   loadProjects();
   loadAiHealth();
+  loadSetupStatus();
 });
 
 const currentProject = computed(
@@ -62,6 +77,7 @@ const activeMenu = computed(() => {
   if (path.startsWith('/timeline/')) return `/timeline/${route.params.projectId}`;
   if (path.startsWith('/requirements')) return '/requirements';
   if (path.startsWith('/tasks')) return '/tasks';
+  if (path === '/settings') return '/settings';
   return '/projects';
 });
 
@@ -87,6 +103,10 @@ function onProjectChange(id) {
         <el-menu-item index="/projects">
           <el-icon><FolderOpened /></el-icon>
           <span>项目列表</span>
+        </el-menu-item>
+        <el-menu-item index="/settings">
+          <el-icon><Setting /></el-icon>
+          <span>设置</span>
         </el-menu-item>
         <el-menu-item
           v-for="item in projectItems"

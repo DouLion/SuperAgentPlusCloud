@@ -13,6 +13,7 @@ import { ROUTES as TASK_ROUTES } from './routes/tasks.mjs';
 import { ROUTES as SUBMISSION_ROUTES } from './routes/submissions.mjs';
 import { ROUTES as AI_ROUTES } from './routes/ai.mjs';
 import { ROUTES as EVENT_ROUTES } from './routes/events.mjs';
+import { ROUTES as SETUP_ROUTES } from './routes/setup.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
 export function segments(pathname) {
@@ -71,6 +72,7 @@ export const ROUTES = [
   ...SUBMISSION_ROUTES,
   ...AI_ROUTES,
   ...EVENT_ROUTES,
+  ...SETUP_ROUTES,
 ];
 
 const MIME_TYPES = {
@@ -135,7 +137,7 @@ function writeHtml(res, status, html) {
 }
 
 /** 前端页面路径：这些路径同时存在 API 路由，浏览器导航时优先返回 SPA。 */
-const SPA_PAGE_PATHS = ['/projects', '/requirements', '/tasks'];
+const SPA_PAGE_PATHS = ['/projects', '/requirements', '/tasks', '/setup', '/settings'];
 const SPA_PAGE_PREFIXES = [
   '/project/',
   '/trunk/',

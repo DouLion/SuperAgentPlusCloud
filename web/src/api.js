@@ -55,6 +55,11 @@ async function request(method, path, body) {
 export const api = {
   healthz: () => request('GET', '/healthz'),
 
+  // 设置向导与配置（T10）
+  setupStatus: () => request('GET', '/setup/status'),
+  initSetup: (input) => request('POST', '/setup/init', input),
+  updateSetup: (input) => request('POST', '/setup', input),
+
   listProjects: (query) => request('GET', `/projects${queryString(query)}`),
   createProject: (input) => request('POST', '/projects', input),
   getProject: (id) => request('GET', `/projects/${encodeURIComponent(id)}`),

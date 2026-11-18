@@ -130,6 +130,7 @@ npm run e2e    # = node client/bin/e2e.mjs
 | `CENTER_PORT` | `8787` | HTTP 监听端口 |
 | `CENTER_HOST` | `127.0.0.1` | HTTP 监听地址 |
 | `CENTER_DB` | `center/data/center.db`（相对包目录） | SQLite 文件路径 |
+| `SAP_CONFIG_PATH` | `center/config.json`（相对包目录） | 配置文件路径；设置页写入的文件 |
 | `SAP_LLM_BASE_URL` | 空 | OpenAI 兼容根地址，如 `https://api.deepseek.com`；为空则 AI 功能不可用 |
 | `SAP_LLM_API_KEY` | 空 | 模型 API Key；与 `SAP_LLM_BASE_URL` 同时非空才启用 AI 功能 |
 | `SAP_LLM_MODEL` | `deepseek-chat` | 模型名 |
@@ -140,6 +141,9 @@ npm run e2e    # = node client/bin/e2e.mjs
 ```powershell
 $env:CENTER_PORT = "9000"; $env:CENTER_DB = "D:\tmp\center-dev.db"; npm start
 ```
+
+配置优先级：**默认值 < `SAP_CONFIG_PATH` 指向的文件 < 环境变量**。首次启动无需任何配置；
+打开 `/setup` 可在 Web 界面完成初始化。模型配置保存后立即生效，端口/数据库修改后需重启。
 
 ## 重置数据库
 

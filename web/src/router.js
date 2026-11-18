@@ -9,6 +9,8 @@ import Tasks from './views/Tasks.vue';
 import TaskDetail from './views/TaskDetail.vue';
 import Changes from './views/Changes.vue';
 import Timeline from './views/Timeline.vue';
+import Setup from './views/Setup.vue';
+import Settings from './views/Settings.vue';
 
 // 说明：设计文档 §4.2 中「需求队列 /requirements/:projectId」与「需求详情 /requirements/:id」
 // 在 vue-router 中会争抢同一路径形状，无法同时成立。这里改为：
@@ -30,6 +32,8 @@ const routes = [
   { path: '/tasks/:id', name: 'task-detail', component: TaskDetail, meta: { title: '任务详情' } },
   { path: '/changes/:projectId', name: 'changes', component: Changes, meta: { title: '变更与影响' } },
   { path: '/timeline/:projectId', name: 'timeline', component: Timeline, meta: { title: '事件时间线' } },
+  { path: '/setup', name: 'setup', component: Setup, meta: { title: '初始化设置' } },
+  { path: '/settings', name: 'settings', component: Settings, meta: { title: '系统设置' } },
   { path: '/:pathMatch(.*)*', redirect: '/projects' },
 ];
 
