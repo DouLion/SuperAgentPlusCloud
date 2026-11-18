@@ -4,6 +4,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
+import { refreshAiHealth } from '../appState.js';
 
 const router = useRouter();
 const active = ref(0);
@@ -75,6 +76,7 @@ async function finish() {
       },
     });
     ElMessage.success('初始化完成');
+    await refreshAiHealth();
     router.replace('/projects');
   } catch (err) {
     ElMessage.error(errorMessage(err, '初始化失败'));

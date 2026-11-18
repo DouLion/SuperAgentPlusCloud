@@ -3,13 +3,14 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from './api.js';
+import { appState, refreshAiHealth } from './appState.js';
 
 const route = useRoute();
 const router = useRouter();
 
 const projects = ref([]);
 const selectedProjectId = ref(localStorage.getItem('sap.projectId') || '');
-const ai = ref({ configured: false, model: '', base_url: '' });
+const ai = appState.ai;
 const aiLoading = ref(false);
 const setupInitialized = ref(true);
 
@@ -34,12 +35,10 @@ async function loadProjects() {
   }
 }
 
-async function loadAiHealth() {
+async function reloadAiHealth() {
   aiLoading.value = true;
   try {
-    ai.value = await api.getAiHealth();
-  } catch (err) {
-    ai.value = { configured: false, model: '', base_url: '' };
+    await refreshAiHealth();
   } finally {
     aiLoading.value = false;
   }
@@ -47,8 +46,13 @@ async function loadAiHealth() {
 
 onMounted(() => {
   loadProjects();
-  loadAiHealth();
+  reloadAiHealth();
   loadSetupStatus();
+});
+
+// 跨页面跳转后也刷新一次，避免某个页面修改了配置而别处仍显示旧值。
+router.afterEach(() => {
+  reloadAiHealth();
 });
 
 const currentProject = computed(
@@ -152,7 +156,7 @@ function onProjectChange(id) {
           >
             {{ ai.configured ? `AI 已配置：${ai.model}` : 'AI 未配置' }}
           </el-tag>
-          <el-button size="small" text @click="loadAiHealth">
+          <el-button size="small" text @click="reloadAiHealth">
             <el-icon><Refresh /></el-icon>
           </el-button>
         </div>

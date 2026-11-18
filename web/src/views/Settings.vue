@@ -3,6 +3,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
+import { refreshAiHealth } from '../appState.js';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -77,6 +78,8 @@ async function submit() {
 
     const result = await api.updateSetup(payload);
     needsRestart.value = result.needs_restart || [];
+    // 保存后立即刷新侧边栏 AI 徽标，不用等路由跳转。
+    await refreshAiHealth();
     ElMessage.success('设置已保存');
     await load();
   } catch (err) {
