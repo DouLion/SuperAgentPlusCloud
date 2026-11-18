@@ -36,3 +36,27 @@ export const CLAIM_STATUSES = ['active', 'released', 'completed', 'expired'];
 
 /** 评审结论。 */
 export const REVIEW_CONCLUSIONS = ['confirm', 'reject', 'needs_info'];
+
+/** 主干条目类型。 */
+export const TRUNK_ITEM_KINDS = [
+  'goal',
+  'scope',
+  'capability',
+  'business_rule',
+  'interface',
+  'data_contract',
+  'architecture_decision',
+  'other',
+];
+
+/** 主干变更状态：proposed → confirmed → in_effect → closed。 */
+export const CHANGE_STATUSES = ['proposed', 'confirmed', 'in_effect', 'closed'];
+
+/** 影响对象类型。 */
+export const IMPACT_TARGET_TYPES = ['task', 'submission', 'document', 'test', 'other'];
+
+/** 影响评估状态：to_check（待检查）与 not_affected（确认无影响）必须区分。 */
+export const IMPACT_ASSESSMENT_STATUSES = ['to_check', 'affected', 'not_affected'];
+
+/** 影响处置方式。 */
+export const IMPACT_RESOLUTIONS = ['continue', 'adjust', 'revalidate', 'obsolete', 'pending'];

@@ -196,6 +196,8 @@ CREATE TABLE IF NOT EXISTS trunk_changes (
   confirmed_by           TEXT,
   confirmed_at           TEXT,
   effective_at           TEXT,
+  -- 确认所依据的政策/规范引用；与 decisions.policy_ref 保持一致。
+  policy_ref             TEXT,
   status                 TEXT NOT NULL DEFAULT 'proposed'
                          CHECK (status IN ('proposed', 'confirmed', 'in_effect',
                                            'closed')),

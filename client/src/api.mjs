@@ -57,7 +57,11 @@ export async function apiRequest(method, path, body, options = {}) {
 
   if (!response.ok) {
     const message = data && data.error ? data.error : `HTTP ${response.status}`;
-    throw new Error(`Center 返回错误（${response.status}）：${message}`);
+    const error = new Error(`Center 返回错误（${response.status}）：${message}`);
+    // 保留服务端 code（如 CHANGE_IMPACT_UNRESOLVED / INVALID_TRANSITION）供命令层识别。
+    if (data && typeof data.code === 'string') error.code = data.code;
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
@@ -171,6 +175,59 @@ export const api = {
       'POST',
       `/submissions/${encodeURIComponent(submissionId)}/review`,
       input,
+      options,
+    ),
+
+  listTrunkChanges: (query, options) =>
+    apiRequest('GET', `/trunk-changes${queryString(query)}`, undefined, options),
+  getTrunkChange: (changeId, options) =>
+    apiRequest(
+      'GET',
+      `/trunk-changes/${encodeURIComponent(changeId)}`,
+      undefined,
+      options,
+    ),
+  createTrunkChange: (input, options) => apiRequest('POST', '/trunk-changes', input, options),
+  confirmTrunkChange: (changeId, input, options) =>
+    apiRequest(
+      'POST',
+      `/trunk-changes/${encodeURIComponent(changeId)}/confirm`,
+      input,
+      options,
+    ),
+  activateTrunkChange: (changeId, input, options) =>
+    apiRequest(
+      'POST',
+      `/trunk-changes/${encodeURIComponent(changeId)}/activate`,
+      input,
+      options,
+    ),
+  closeTrunkChange: (changeId, options) =>
+    apiRequest(
+      'POST',
+      `/trunk-changes/${encodeURIComponent(changeId)}/close`,
+      undefined,
+      options,
+    ),
+  addImpactItem: (changeId, input, options) =>
+    apiRequest(
+      'POST',
+      `/trunk-changes/${encodeURIComponent(changeId)}/impacts`,
+      input,
+      options,
+    ),
+  listImpactItems: (changeId, options) =>
+    apiRequest(
+      'GET',
+      `/trunk-changes/${encodeURIComponent(changeId)}/impacts`,
+      undefined,
+      options,
+    ),
+  updateImpactItem: (impactItemId, patch, options) =>
+    apiRequest(
+      'PATCH',
+      `/impact-items/${encodeURIComponent(impactItemId)}`,
+      patch,
       options,
     ),
 };

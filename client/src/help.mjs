@@ -1,6 +1,6 @@
 // 客户端帮助文本与命令清单。
 // 已实现：submit / decide / show / tasks / claim / release（T2/T3）；
-// deliver / review（T4）。
+// deliver / review（T4）；change / impact（T5）。
 
 export const DEFAULT_CENTER_URL = 'http://127.0.0.1:8787';
 
@@ -14,6 +14,8 @@ export const IMPLEMENTED_COMMANDS = [
   'release',
   'deliver',
   'review',
+  'change',
+  'impact',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -74,9 +76,15 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'change',
-    usage: 'sap change propose|confirm|impact --change <chg_id>',
-    desc: '主干变更与影响对象逐项处置',
-    implemented: false,
+    usage: 'sap change propose --project <id> --reason <理由> --old <item_id> [...] [--requirement <req_id>] [--proposal "<kind>:<statement>"] [...] ｜ confirm/activate/close/show --change <chg_id>',
+    desc: '主干变更：提出、确认、生效、关闭与查看（影响处置未完成不能关闭）',
+    implemented: true,
+  },
+  {
+    name: 'impact',
+    usage: 'sap impact add --change <chg_id> --type <task|submission|document|test|other> --target <id> [--owner <名字>] ｜ update --impact <imp_id> --status <to_check|affected|not_affected> [--resolution ...] [--reason ...]',
+    desc: '影响对象登记与逐项处置（区分待检查与确认无影响）',
+    implemented: true,
   },
 ];
 
@@ -93,6 +101,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T4 提交与评审 —— submit / decide / show / tasks / claim / release / deliver / review 可用；主干变更见后续层（T5+）。',
+    '当前进度：T5 主干变更与影响处置 —— submit / decide / show / tasks / claim / release / deliver / review / change / impact 可用。',
   ].join('\n');
 }
