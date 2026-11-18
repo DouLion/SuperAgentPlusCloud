@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS requirements (
   status           TEXT NOT NULL DEFAULT 'submitted'
                    CHECK (status IN ('submitted', 'needs_info', 'assessed',
                                      'accepted', 'rejected', 'cancelled')),
+  -- 已确认的最终等级（仅决定为 accepted/relevelled 时写入）；
+  -- 与提交者自报的 claimed_level 分开保存，不覆盖原文与自报信息。
+  final_level      TEXT,
   created_at       TEXT NOT NULL
 );
 

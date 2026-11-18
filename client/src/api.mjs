@@ -1,0 +1,120 @@
+// Center HTTP 客户端（T2）：客户端唯一发出请求的地方。
+// 零第三方依赖，使用 Node 26 内置 fetch；非 2xx 抛错并携带服务端 error 文本。
+
+import { DEFAULT_CENTER_URL } from './help.mjs';
+
+/** 解析 Center 地址；CENTER_URL 可覆盖，默认 http://127.0.0.1:8787。 */
+export function resolveCenterUrl(env = process.env) {
+  const raw = env.CENTER_URL || DEFAULT_CENTER_URL;
+  return raw.replace(/\/+$/, '');
+}
+
+/** 把查询对象编码为 URLSearchParams；空值忽略。 */
+function queryString(query) {
+  if (!query) return '';
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+  }
+  const text = params.toString();
+  return text ? `?${text}` : '';
+}
+
+/**
+ * 发起一次 JSON 请求。
+ * @param {string} method
+ * @param {string} path
+ * @param {object} [body]
+ * @param {object} [options] { url, env, fetchImpl }
+ * @returns {Promise<any>} 解析后的 JSON
+ */
+export async function apiRequest(method, path, body, options = {}) {
+  const base = options.url || resolveCenterUrl(options.env);
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.headers['content-type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+
+  let response;
+  try {
+    response = await fetchImpl(`${base}${path}`, init);
+  } catch (err) {
+    throw new Error(`无法连接 Center（${base}）：${err.message}`);
+  }
+
+  const text = await response.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = data && data.error ? data.error : `HTTP ${response.status}`;
+    throw new Error(`Center 返回错误（${response.status}）：${message}`);
+  }
+  return data;
+}
+
+/** Center 接口封装；所有方法返回 Promise。 */
+export const api = {
+  healthz: (options) => apiRequest('GET', '/healthz', undefined, options),
+
+  listProjects: (query, options) =>
+    apiRequest('GET', `/projects${queryString(query)}`, undefined, options),
+  createProject: (input, options) => apiRequest('POST', '/projects', input, options),
+
+  listTrunkItems: (query, options) =>
+    apiRequest('GET', `/trunk-items${queryString(query)}`, undefined, options),
+  createTrunkItem: (input, options) => apiRequest('POST', '/trunk-items', input, options),
+
+  listRequirements: (query, options) =>
+    apiRequest('GET', `/requirements${queryString(query)}`, undefined, options),
+  getRequirement: (requirementId, options) =>
+    apiRequest('GET', `/requirements/${encodeURIComponent(requirementId)}`, undefined, options),
+  createRequirement: (input, options) => apiRequest('POST', '/requirements', input, options),
+
+  listAssessments: (requirementId, options) =>
+    apiRequest(
+      'GET',
+      `/requirements/${encodeURIComponent(requirementId)}/assessments`,
+      undefined,
+      options,
+    ),
+  createAssessment: (requirementId, input, options) =>
+    apiRequest(
+      'POST',
+      `/requirements/${encodeURIComponent(requirementId)}/assessments`,
+      input,
+      options,
+    ),
+
+  listDecisions: (requirementId, options) =>
+    apiRequest(
+      'GET',
+      `/requirements/${encodeURIComponent(requirementId)}/decisions`,
+      undefined,
+      options,
+    ),
+  createDecision: (requirementId, input, options) =>
+    apiRequest(
+      'POST',
+      `/requirements/${encodeURIComponent(requirementId)}/decision`,
+      input,
+      options,
+    ),
+
+  getTimeline: (requirementId, options) =>
+    apiRequest(
+      'GET',
+      `/requirements/${encodeURIComponent(requirementId)}/timeline`,
+      undefined,
+      options,
+    ),
+};
