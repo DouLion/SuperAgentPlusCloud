@@ -87,3 +87,14 @@ export const AI_SUGGESTION_KINDS = ['assessment', 'task_plan', 'impact'];
 export const VERSIONED_DEFINITION_STATUSES = ['draft', 'active', 'superseded', 'retired'];
 export const CONVENTION_PACK_SCOPES = ['team', 'project'];
 export const CONVENTION_RULE_SEVERITIES = ['must', 'should', 'preference'];
+
+/** 项目制品（T13）：API 契约是文档与 Mock 的唯一事实源。 */
+export const ARTIFACT_TYPES = [
+  'api_contract',
+  'api_document',
+  'mock_definition',
+  'document',
+  'schema',
+  'test_report',
+];
+export const ARTIFACT_STATUSES = ['draft', 'published', 'superseded', 'retired'];

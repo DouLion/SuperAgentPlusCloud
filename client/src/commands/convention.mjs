@@ -39,10 +39,14 @@ export async function run(argv, io = {}) {
       print(out, await api.createConventionPack(body)); return 0;
     }
     if (sub === 'activate') {
-      print(out, await api.activateConventionPack(requireFlag(flags, 'pack'), { activated_by: requireFlag(flags, 'by') })); return 0;
+      print(out, await api.activateConventionPack(requireFlag(flags, 'pack'), {
+        activated_by: requireFlag(flags, 'by'), reason: requireFlag(flags, 'reason'),
+      })); return 0;
     }
     if (sub === 'retire') {
-      print(out, await api.retireConventionPack(requireFlag(flags, 'pack'), { retired_by: requireFlag(flags, 'by') })); return 0;
+      print(out, await api.retireConventionPack(requireFlag(flags, 'pack'), {
+        retired_by: requireFlag(flags, 'by'), reason: requireFlag(flags, 'reason'),
+      })); return 0;
     }
     if (sub === 'import') {
       print(out, await api.importConventionPack(requireFlag(flags, 'pack'), {

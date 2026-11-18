@@ -33,12 +33,22 @@ export async function run(argv, io = {}) {
       }); print(out, await api.createWorkflowTemplate(body)); return 0;
     }
     if (sub === 'activate') {
-      print(out, await api.activateWorkflowTemplate(requireFlag(flags, 'template'), { activated_by: requireFlag(flags, 'by') })); return 0;
+      print(out, await api.activateWorkflowTemplate(requireFlag(flags, 'template'), {
+        activated_by: requireFlag(flags, 'by'), reason: requireFlag(flags, 'reason'),
+      })); return 0;
     }
     if (sub === 'retire') {
-      print(out, await api.retireWorkflowTemplate(requireFlag(flags, 'template'), { retired_by: requireFlag(flags, 'by') })); return 0;
+      print(out, await api.retireWorkflowTemplate(requireFlag(flags, 'template'), {
+        retired_by: requireFlag(flags, 'by'), reason: requireFlag(flags, 'reason'),
+      })); return 0;
     }
-    if (sub === 'seed') { print(out, await api.seedWorkflowTemplates({ created_by: optionalFlag(flags, 'by') })); return 0; }
+    if (sub === 'seed') {
+      print(out, await api.seedWorkflowTemplates({
+        project_id: optionalFlag(flags, 'project'),
+        created_by: optionalFlag(flags, 'by') ?? 'system',
+        reason: optionalFlag(flags, 'reason') ?? '启用内置 contract-first-api 编排模板',
+      })); return 0;
+    }
     err(`用法：${meta.usage}`); return 1;
   } catch (error) { printError(error, err); return 1; }
 }

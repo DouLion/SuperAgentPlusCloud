@@ -1,6 +1,7 @@
 // 任务编排模板（T12）：版本化 DAG 定义与内置 contract-first-api 模板。
 
 import { appendEvent } from './events.mjs';
+import { appendDefinitionEvent } from './definition-events.mjs';
 import { assertProjectExists } from './projects.mjs';
 import { VERSIONED_DEFINITION_STATUSES } from './enums.mjs';
 import {
@@ -24,22 +25,22 @@ export const CONTRACT_FIRST_API = {
   kind: 'api-development',
   nodes: [
     {
-      key: 'api-contract', title: '接口契约设计',
+      key: 'contract', title: '接口契约设计',
       purpose_template: '定义接口路径、方法、请求/响应与错误约定。',
       done_when_template: ['接口契约经确认并形成可引用版本'],
-      role_hint: 'api-designer', depends_on: [], outputs: ['api_contract'],
+      role_hint: 'api-designer', depends_on: [], outputs: ['api_contract', 'api_document', 'mock_definition'],
     },
     {
       key: 'frontend', title: '前端按契约实现',
       purpose_template: '前端严格按已确认接口契约实现交互与数据映射。',
       done_when_template: ['前端功能完成且 mock 场景通过'],
-      role_hint: 'frontend', depends_on: ['api-contract'], outputs: ['frontend_change'],
+      role_hint: 'frontend', depends_on: ['contract'], outputs: ['frontend_change'],
     },
     {
       key: 'backend', title: '后端按契约实现',
       purpose_template: '后端严格按已确认接口契约实现接口与校验。',
       done_when_template: ['后端接口完成且契约测试通过'],
-      role_hint: 'backend', depends_on: ['api-contract'], outputs: ['backend_change'],
+      role_hint: 'backend', depends_on: ['contract'], outputs: ['backend_change'],
     },
     {
       key: 'integration', title: '前后端联调测试',
@@ -115,7 +116,7 @@ function normalizeNodes(value) {
 }
 
 export function createWorkflowTemplate(db, input = {}) {
-  const templateId = pick(input, 'template_id', 'templateId') ?? newId('wf');
+  const templateId = pick(input, 'template_id', 'templateId') ?? newId('wft');
   const name = required(input, 'name');
   const kind = required(input, 'kind');
   const status = pick(input, 'status') ?? 'draft';
@@ -126,13 +127,19 @@ export function createWorkflowTemplate(db, input = {}) {
   const version = Number(pick(input, 'version') ?? 1);
   if (!Number.isInteger(version) || version < 1) throw new Error('version 必须是正整数');
   const nodes = normalizeNodes(required(input, 'nodes'));
-  const createdBy = pick(input, 'created_by', 'createdBy');
+  const createdBy = required(input, 'created_by', 'createdBy');
   const now = pick(input, 'created_at', 'createdAt') ?? nowIso();
   db.prepare(INSERT_TEMPLATE).run(
     templateId, name, pick(input, 'description'), status, version, projectId, kind,
     encodeJson(nodes), createdBy, now, null, pick(input, 'supersedes'),
     pick(input, 'built_in', 'builtIn') ? 1 : 0,
   );
+  appendDefinitionEvent(db, {
+    project_id: projectId,
+    object_type: 'workflow_template', object_id: templateId,
+    event_type: 'workflow_template.created', actor: createdBy,
+    occurred_at: now, reason: `创建编排模板：${name}`,
+  });
   if (projectId) {
     appendEvent(db, {
       project_id: projectId, object_type: 'workflow_template', object_id: templateId,
@@ -171,14 +178,20 @@ export function activateWorkflowTemplate(db, templateId, patch = {}) {
     throw codedError('INVALID_TRANSITION', `编排模板当前状态不可激活：${template.status}`, 409);
   }
   const actor = required(patch, 'activated_by', 'activatedBy');
+  const reason = required(patch, 'reason');
   const now = nowIso();
   db.prepare("UPDATE workflow_templates SET status = 'active', activated_at = ? WHERE template_id = ?")
     .run(now, templateId);
+  appendDefinitionEvent(db, {
+    project_id: template.project_id,
+    object_type: 'workflow_template', object_id: templateId,
+    event_type: 'workflow_template.activated', actor, occurred_at: now, reason,
+  });
   if (template.project_id) {
     appendEvent(db, {
       project_id: template.project_id, object_type: 'workflow_template', object_id: templateId,
       event_type: 'workflow_template.activated', actor, occurred_at: now,
-      reason: pick(patch, 'reason') ?? `激活 ${template.name}`,
+      reason,
     });
   }
   return getWorkflowTemplate(db, templateId);
@@ -191,30 +204,46 @@ export function retireWorkflowTemplate(db, templateId, patch = {}) {
     throw codedError('INVALID_TRANSITION', `编排模板当前状态不可退役：${template.status}`, 409);
   }
   const actor = required(patch, 'retired_by', 'retiredBy');
+  const reason = required(patch, 'reason');
   const now = nowIso();
   db.prepare("UPDATE workflow_templates SET status = 'retired' WHERE template_id = ?").run(templateId);
+  appendDefinitionEvent(db, {
+    project_id: template.project_id,
+    object_type: 'workflow_template', object_id: templateId,
+    event_type: 'workflow_template.retired', actor, occurred_at: now, reason,
+  });
   if (template.project_id) {
     appendEvent(db, {
       project_id: template.project_id, object_type: 'workflow_template', object_id: templateId,
       event_type: 'workflow_template.retired', actor, occurred_at: now,
-      reason: pick(patch, 'reason') ?? `退役 ${template.name}`,
+      reason,
     });
   }
   return getWorkflowTemplate(db, templateId);
 }
 
-export function seedBuiltInWorkflows(db, input = {}) {
-  const existing = db.prepare('SELECT * FROM workflow_templates WHERE name = ? AND built_in = 1')
-    .get(CONTRACT_FIRST_API.name);
+export function seedBuiltInTemplates(db, projectId, input = {}) {
+  if (projectId) assertProjectExists(db, projectId);
+  const existing = db.prepare(`SELECT * FROM workflow_templates
+    WHERE name = ? AND built_in = 1 AND project_id IS ?`)
+    .get(CONTRACT_FIRST_API.name, projectId ?? null);
   if (existing) return parseTemplate(existing);
+  const actor = pick(input, 'created_by', 'createdBy') ?? 'system';
   const created = createWorkflowTemplate(db, {
     ...CONTRACT_FIRST_API,
+    project_id: projectId ?? null,
     built_in: true,
-    created_by: pick(input, 'created_by', 'createdBy') ?? 'system',
+    created_by: actor,
   });
   return activateWorkflowTemplate(db, created.template_id, {
-    activated_by: pick(input, 'created_by', 'createdBy') ?? 'system',
+    activated_by: actor,
+    reason: '启用内置 contract-first-api 编排模板',
   });
+}
+
+// 兼容早期内部名称；新代码使用 seedBuiltInTemplates。
+export function seedBuiltInWorkflows(db, input = {}) {
+  return seedBuiltInTemplates(db, pick(input, 'project_id', 'projectId'), input);
 }
 
 export { normalizeNodes };

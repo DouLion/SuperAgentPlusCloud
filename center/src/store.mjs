@@ -13,5 +13,6 @@ export * from './db/tasks.mjs';
 export * from './db/submissions.mjs';
 export * from './db/changes.mjs';
 export * from './db/ai.mjs';
+export * from './db/definition-events.mjs';
 export * from './db/conventions.mjs';
 export * from './db/workflows.mjs';

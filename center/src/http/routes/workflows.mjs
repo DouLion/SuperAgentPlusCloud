@@ -6,7 +6,7 @@ import {
   getWorkflowTemplate,
   listWorkflowTemplates,
   retireWorkflowTemplate,
-  seedBuiltInWorkflows,
+  seedBuiltInTemplates,
 } from '../../db/workflows.mjs';
 
 function requireTemplate(db, id) {
@@ -38,6 +38,9 @@ export const ROUTES = [
   },
   {
     method: 'POST', pattern: '/workflow-templates/seed',
-    handler: ({ db, body }) => ({ status: 200, body: seedBuiltInWorkflows(db, body) }),
+    handler: ({ db, body }) => ({
+      status: 200,
+      body: seedBuiltInTemplates(db, body.project_id ?? body.projectId, body),
+    }),
   },
 ];

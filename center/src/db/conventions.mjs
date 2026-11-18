@@ -1,6 +1,7 @@
 // 项目约定包（T12）：团队模板与项目快照的版本化存储。
 
 import { appendEvent } from './events.mjs';
+import { appendDefinitionEvent } from './definition-events.mjs';
 import { assertProjectExists } from './projects.mjs';
 import {
   CONVENTION_PACK_SCOPES,
@@ -74,8 +75,8 @@ export function createConventionPack(db, input = {}) {
   const version = Number(pick(input, 'version') ?? 1);
   if (!Number.isInteger(version) || version < 1) throw new Error('version 必须是正整数');
   const rules = normalizeRules(pick(input, 'rules') ?? []);
+  const createdBy = required(input, 'created_by', 'createdBy');
   const now = pick(input, 'created_at', 'createdAt') ?? nowIso();
-  const createdBy = pick(input, 'created_by', 'createdBy');
   const supersedes = pick(input, 'supersedes');
   const importedFrom = pick(input, 'imported_from', 'importedFrom');
 
@@ -83,6 +84,13 @@ export function createConventionPack(db, input = {}) {
     packId, name, pick(input, 'description'), status, version, scope, projectId,
     encodeJson(rules), createdBy, now, null, supersedes, importedFrom,
   );
+  appendDefinitionEvent(db, {
+    project_id: projectId,
+    object_type: 'convention_pack', object_id: packId,
+    event_type: 'convention_pack.created', actor: createdBy,
+    occurred_at: now, reason: `创建约定包：${name}`,
+    refs: importedFrom ? [importedFrom] : [],
+  });
   if (projectId) {
     appendEvent(db, {
       project_id: projectId,
@@ -139,12 +147,19 @@ export function activateConventionPack(db, packId, patch = {}) {
     }
     db.prepare("UPDATE convention_packs SET status = 'active', activated_at = ? WHERE pack_id = ?")
       .run(now, packId);
+    const reason = required(patch, 'reason');
+    appendDefinitionEvent(db, {
+      project_id: pack.project_id,
+      object_type: 'convention_pack', object_id: packId,
+      event_type: 'convention_pack.activated', actor, occurred_at: now, reason,
+      refs: active.map((row) => row.pack_id),
+    });
     if (pack.project_id) {
       appendEvent(db, {
         project_id: pack.project_id,
         object_type: 'convention_pack', object_id: packId,
         event_type: 'convention_pack.activated', actor,
-        occurred_at: now, reason: pick(patch, 'reason') ?? `激活 ${pack.name}`,
+        occurred_at: now, reason,
         refs: active.map((row) => row.pack_id),
       });
     }
@@ -163,14 +178,20 @@ export function retireConventionPack(db, packId, patch = {}) {
     throw codedError('INVALID_TRANSITION', `约定包当前状态不可退役：${pack.status}`, 409);
   }
   const actor = required(patch, 'retired_by', 'retiredBy');
+  const reason = required(patch, 'reason');
   const now = nowIso();
   db.prepare("UPDATE convention_packs SET status = 'retired' WHERE pack_id = ?").run(packId);
+  appendDefinitionEvent(db, {
+    project_id: pack.project_id,
+    object_type: 'convention_pack', object_id: packId,
+    event_type: 'convention_pack.retired', actor, occurred_at: now, reason,
+  });
   if (pack.project_id) {
     appendEvent(db, {
       project_id: pack.project_id,
       object_type: 'convention_pack', object_id: packId,
       event_type: 'convention_pack.retired', actor,
-      occurred_at: now, reason: pick(patch, 'reason') ?? `退役 ${pack.name}`,
+      occurred_at: now, reason,
     });
   }
   return getConventionPack(db, packId);
@@ -190,7 +211,7 @@ export function importConventionPack(db, teamPackId, input = {}) {
     scope: 'project',
     project_id: projectId,
     rules: source.rules,
-    version: source.version,
+    version: 1,
     created_by: pick(input, 'created_by', 'createdBy'),
     imported_from: source.pack_id,
   });

@@ -322,3 +322,52 @@ CREATE INDEX IF NOT EXISTS idx_workflow_templates_project_status
 CREATE INDEX IF NOT EXISTS idx_workflow_templates_kind_status
   ON workflow_templates (kind, status);
 
+-- 全局定义事件（T12）---------------------------------------------------------
+-- 团队模板/内置模板可能没有 project_id，不能写入 project_id 必填的 events。
+CREATE TABLE IF NOT EXISTS definition_events (
+  event_id    TEXT PRIMARY KEY,
+  project_id  TEXT REFERENCES projects (project_id),
+  object_type TEXT NOT NULL CHECK (object_type IN ('convention_pack', 'workflow_template')),
+  object_id   TEXT NOT NULL,
+  event_type  TEXT NOT NULL,
+  actor       TEXT NOT NULL,
+  reason      TEXT NOT NULL,
+  refs        TEXT NOT NULL DEFAULT '[]',
+  occurred_at TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_definition_events_object
+  ON definition_events (object_type, object_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_definition_events_project
+  ON definition_events (project_id, occurred_at);
+
+-- 项目制品（T13）-------------------------------------------------------------
+-- API 文档与 Mock 均从 api_contract content 生成，不维护第二份事实。
+CREATE TABLE IF NOT EXISTS artifacts (
+  artifact_id          TEXT PRIMARY KEY,
+  project_id           TEXT NOT NULL REFERENCES projects (project_id),
+  type                 TEXT NOT NULL CHECK (type IN (
+                         'api_contract', 'api_document', 'mock_definition',
+                         'document', 'schema', 'test_report'
+                       )),
+  name                 TEXT NOT NULL,
+  version              INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+  status               TEXT NOT NULL DEFAULT 'draft'
+                       CHECK (status IN ('draft', 'published', 'superseded', 'retired')),
+  content              TEXT NOT NULL,
+  digest               TEXT NOT NULL,
+  source_task_id       TEXT REFERENCES tasks (task_id),
+  source_submission_id TEXT REFERENCES submissions (submission_id),
+  created_by           TEXT NOT NULL,
+  created_at           TEXT NOT NULL,
+  published_by         TEXT,
+  published_at         TEXT,
+  supersedes           TEXT REFERENCES artifacts (artifact_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifacts_project_type_status
+  ON artifacts (project_id, type, status);
+CREATE INDEX IF NOT EXISTS idx_artifacts_project_name_version
+  ON artifacts (project_id, name, version);
+
