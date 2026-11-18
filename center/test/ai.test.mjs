@@ -33,12 +33,17 @@ const dbPath = path.join(
 const ENV_KEYS = ['SAP_LLM_BASE_URL', 'SAP_LLM_API_KEY', 'SAP_LLM_MODEL', 'SAP_LLM_TIMEOUT_MS'];
 const originalEnv = {};
 const originalFetch = globalThis.fetch;
+// 工作区可能存在真实 center/config.json（含已配置的模型），测试必须与其隔离。
+const ISOLATED_CONFIG = path.join(os.tmpdir(), `sap-ai-test-config-${process.pid}.json`);
 
 let db;
 
 test.before(() => {
   db = openStore(dbPath);
   for (const key of ENV_KEYS) originalEnv[key] = process.env[key];
+  originalEnv.SAP_CONFIG_PATH = process.env.SAP_CONFIG_PATH;
+  process.env.SAP_CONFIG_PATH = ISOLATED_CONFIG;
+  fs.rmSync(ISOLATED_CONFIG, { force: true });
 });
 
 test.after(() => {
@@ -46,6 +51,9 @@ test.after(() => {
     if (originalEnv[key] === undefined) delete process.env[key];
     else process.env[key] = originalEnv[key];
   }
+  if (originalEnv.SAP_CONFIG_PATH === undefined) delete process.env.SAP_CONFIG_PATH;
+  else process.env.SAP_CONFIG_PATH = originalEnv.SAP_CONFIG_PATH;
+  fs.rmSync(ISOLATED_CONFIG, { force: true });
   globalThis.fetch = originalFetch;
   db.close();
   fs.rmSync(dbPath, { force: true });
@@ -338,7 +346,7 @@ test('AI：HTTP 未配置时 health 为 false，advice 返回 503 且核心链�
 
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   try {
     const health = await fetch(`${base}/ai/health`).then((res) => res.json());
@@ -378,7 +386,7 @@ test('AI：HTTP 已配置时 advice 落库并返回 suggestion 与 draft', async
 
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   // 发往 Center 的请求走真实 fetch；发往模型的请求走假响应。
   globalThis.fetch = async (url, init) => {

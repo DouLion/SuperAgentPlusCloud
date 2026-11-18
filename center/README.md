@@ -36,6 +36,8 @@ center/
 
 ## 主要接口
 
+下表均为相对路径，正式接口统一加前缀 **`/sap-cloud/api`**。例如健康检查是 `/sap-cloud/api/healthz`，项目列表是 `/sap-cloud/api/projects`。旧根路径只用于迁移提示，不应继续调用。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `GET` | `/healthz` | 健康检查 |
@@ -78,7 +80,7 @@ cd center
 npm start                 # = node bin/center.mjs
 ```
 
-启动后访问 `GET http://127.0.0.1:8787/healthz`，应返回 `{"ok":true}`。完整接口清单见上节「主要接口」。
+启动后访问 `GET http://127.0.0.1:8787/sap-cloud/api/healthz`，应返回 `{"ok":true}`。完整接口清单见上节「主要接口」。
 
 ## 初始化数据库
 
@@ -143,7 +145,7 @@ $env:CENTER_PORT = "9000"; $env:CENTER_DB = "D:\tmp\center-dev.db"; npm start
 ```
 
 配置优先级：**默认值 < `SAP_CONFIG_PATH` 指向的文件 < 环境变量**。首次启动无需任何配置；
-打开 `/setup` 可在 Web 界面完成初始化。模型配置保存后立即生效，端口/数据库修改后需重启。
+打开 `/sap-cloud/setup` 可在 Web 界面完成初始化。模型配置保存后立即生效，端口/数据库修改后需重启。
 
 ## 重置数据库
 

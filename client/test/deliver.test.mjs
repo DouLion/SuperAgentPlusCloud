@@ -82,6 +82,8 @@ function startFakeCenter() {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url, 'http://127.0.0.1');
+      // 假 Center 按剥掉 /sap-cloud/api 前缀后的路径匹配。
+      const path = url.pathname.replace(/^\/sap-cloud\/api/, '');
       const raw = Buffer.concat(chunks).toString('utf8');
       let body = {};
       if (raw) {
@@ -99,14 +101,14 @@ function startFakeCenter() {
         res.end(data);
       };
 
-      let matched = url.pathname.match(/^\/tasks\/([^/]+)$/);
+      let matched = path.match(/^\/tasks\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const task = state.tasks.find((item) => item.task_id === matched[1]);
         if (!task) return send(404, { ok: false, error: `任务不存在：${matched[1]}` });
         return send(200, task);
       }
 
-      matched = url.pathname.match(/^\/tasks\/([^/]+)\/submissions$/);
+      matched = path.match(/^\/tasks\/([^/]+)\/submissions$/);
       if (req.method === 'GET' && matched) {
         return send(200, state.submissions.filter((item) => item.task_id === matched[1]));
       }
@@ -146,7 +148,7 @@ function startFakeCenter() {
         return send(201, submission);
       }
 
-      matched = url.pathname.match(/^\/submissions\/([^/]+)\/review$/);
+      matched = path.match(/^\/submissions\/([^/]+)\/review$/);
       if (req.method === 'POST' && matched) {
         const submission = state.submissions.find(
           (item) => item.submission_id === matched[1],
@@ -196,12 +198,12 @@ function startFakeCenter() {
         return send(201, review);
       }
 
-      matched = url.pathname.match(/^\/submissions\/([^/]+)\/reviews$/);
+      matched = path.match(/^\/submissions\/([^/]+)\/reviews$/);
       if (req.method === 'GET' && matched) {
         return send(200, state.reviews.filter((item) => item.submission_id === matched[1]));
       }
 
-      matched = url.pathname.match(/^\/submissions\/([^/]+)$/);
+      matched = path.match(/^\/submissions\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const submission = state.submissions.find(
           (item) => item.submission_id === matched[1],
@@ -212,18 +214,18 @@ function startFakeCenter() {
         return send(200, submission);
       }
 
-      matched = url.pathname.match(/^\/tasks\/([^/]+)\/claims$/);
+      matched = path.match(/^\/tasks\/([^/]+)\/claims$/);
       if (req.method === 'GET' && matched) {
         return send(200, state.claims.filter((item) => item.task_id === matched[1]));
       }
 
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/timeline$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/timeline$/);
       if (req.method === 'GET' && matched) return send(200, []);
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/assessments$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/assessments$/);
       if (req.method === 'GET' && matched) return send(200, []);
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/decisions$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/decisions$/);
       if (req.method === 'GET' && matched) return send(200, []);
-      matched = url.pathname.match(/^\/requirements\/([^/]+)$/);
+      matched = path.match(/^\/requirements\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const requirement = state.requirements.get(matched[1]);
         if (!requirement) {
@@ -287,11 +289,11 @@ test('api：提交与评审的请求路径、请求体与返回', async () => {
     assert.deepEqual(
       fake.state.requests.map((item) => `${item.method} ${item.path}`),
       [
-        'POST /tasks/task_a/submissions',
-        'GET /tasks/task_a/submissions',
-        'GET /submissions/sub_2',
-        'POST /submissions/sub_2/review',
-        'GET /submissions/sub_2/reviews',
+        'POST /sap-cloud/api/tasks/task_a/submissions',
+        'GET /sap-cloud/api/tasks/task_a/submissions',
+        'GET /sap-cloud/api/submissions/sub_2',
+        'POST /sap-cloud/api/submissions/sub_2/review',
+        'GET /sap-cloud/api/submissions/sub_2/reviews',
       ],
     );
     assert.equal(fake.state.requests[0].body.submitted_by, 'worker_a');
@@ -326,7 +328,7 @@ test('命令：deliver 组装 commit 引用、自测与缺口并输出提交结�
 
     const request = fake.state.requests[fake.state.requests.length - 1];
     assert.equal(request.method, 'POST');
-    assert.equal(request.path, '/tasks/task_a/submissions');
+    assert.equal(request.path, '/sap-cloud/api/tasks/task_a/submissions');
     assert.deepEqual(request.body.commit_refs, [
       { repo: 'sap-center', hash: 'abc123' },
       { repo: 'sap-client', hash: 'def456' },
@@ -412,7 +414,7 @@ test('命令：review 解析 "条件=结果" 并提交逐项结果', async () =>
 
     const request = fake.state.requests[fake.state.requests.length - 1];
     assert.equal(request.method, 'POST');
-    assert.equal(request.path, '/submissions/sub_1/review');
+    assert.equal(request.path, '/sap-cloud/api/submissions/sub_1/review');
     assert.deepEqual(request.body.criterion_results, [
       {
         criterion: '接口返回提交列表',

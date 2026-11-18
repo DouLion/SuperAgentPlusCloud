@@ -1,4 +1,4 @@
-// Center 任务与认领测试（T3）。
+﻿// Center 任务与认领测试（T3）。
 // 运行：node --test center/test/
 // 测试数据库使用系统临时目录，结束后删除。
 
@@ -287,7 +287,7 @@ test('HTTP：批量拆解自动开放，claim 冲突返回 409 且带 code', asy
   const item = seedItem(project.project_id);
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   try {
     const created = await fetch(

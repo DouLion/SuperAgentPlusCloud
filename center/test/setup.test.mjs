@@ -1,4 +1,4 @@
-// Center 配置与设置服务测试（T10）。
+﻿// Center 配置与设置服务测试（T10）。
 // 覆盖三层合并、原子写、初始化/更新、校验、密钥不回显与 HTTP 路由。
 // 运行：node --test center/test/
 
@@ -153,7 +153,7 @@ test('HTTP：/setup/status 不泄漏密钥，/setup/init 与 /setup 可用', asy
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
   const secret = 'sk-http-secret';
 
   try {

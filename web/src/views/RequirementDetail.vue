@@ -3,18 +3,16 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
-import {
-  formatTime,
-  OPTIONS,
-  TRUNK_KIND_TEXT,
-} from '../status.js';
+import { formatTime, OPTIONS, TRUNK_KIND_TEXT } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import SuggestionCard from '../components/SuggestionCard.vue';
 import EmptyState from '../components/EmptyState.vue';
+import { go } from '../nav.js';
 
 const route = useRoute();
 const router = useRouter();
-const requirementId = route.params.id;
+const projectId = route.params.id;
+const requirementId = route.params.requirementId;
 
 const loading = ref(false);
 const requirement = ref(null);
@@ -61,6 +59,12 @@ const decisionForm = reactive({
 });
 const decisionSubmitting = ref(false);
 
+const levelMismatch = computed(() => {
+  const claimed = requirement.value?.claimed_level;
+  const final = requirement.value?.final_level;
+  return Boolean(claimed && final && claimed !== final);
+});
+
 const relatedItemOptions = computed(() => {
   const ids = new Set(activeItems.value.map((item) => item.item_id));
   for (const id of adoptForm.related_item_ids) ids.add(id);
@@ -102,7 +106,7 @@ async function load() {
       api.listAssessments(requirementId),
       api.listDecisions(requirementId),
       api.getRequirementTimeline(requirementId),
-      api.listTasks({ requirement_id: requirementId }),
+      api.listTasks({ requirement_id: requirementId }).catch(() => []),
     ]);
     requirement.value = requirementRow;
     assessments.value = assessmentRows;
@@ -112,7 +116,7 @@ async function load() {
     activeItems.value = await api.listTrunkItems({
       project_id: requirementRow.project_id,
       status: 'active',
-    });
+    }).catch(() => []);
   } catch (err) {
     ElMessage.error(errorMessage(err, '加载需求详情失败'));
   } finally {
@@ -145,10 +149,7 @@ async function generateAdvice() {
 }
 
 async function adoptAdvice() {
-  const uncertainties = adoptForm.uncertainties
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const uncertainties = adoptForm.uncertainties.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (adoptForm.assessed_level !== 'undecided' && adoptForm.related_item_ids.length === 0) {
     ElMessage.error('评估必须引用相关主干条目；信息不足时请使用 assessed_level=undecided');
     return;
@@ -174,10 +175,7 @@ async function adoptAdvice() {
 }
 
 async function submitAssessment() {
-  const uncertainties = assessForm.uncertainties
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const uncertainties = assessForm.uncertainties.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (assessForm.assessed_level !== 'undecided' && assessForm.related_item_ids.length === 0) {
     ElMessage.error('评估必须引用相关主干条目；信息不足时请使用 assessed_level=undecided');
     return;
@@ -257,7 +255,7 @@ async function adoptPlan() {
 }
 
 function openTask(row) {
-  router.push(`/tasks/${row.task_id}`);
+  go(router, 'task-detail', { id: projectId, taskId: row.task_id });
 }
 
 watch(
@@ -269,7 +267,7 @@ watch(
 
 onMounted(() => {
   if (!requirementId) {
-    router.replace('/projects');
+    go(router, 'projects');
     return;
   }
   load();
@@ -290,33 +288,35 @@ onMounted(() => {
     </div>
 
     <EmptyState v-if="!loading && !requirement" description="需求不存在或加载失败" :height="'200px'">
-      <el-button @click="router.push('/projects')">返回项目列表</el-button>
+      <el-button @click="go(router, 'projects')">返回项目列表</el-button>
     </EmptyState>
 
     <template v-else-if="requirement">
-      <el-card shadow="never" class="card-gap">
-        <template #header>基本信息</template>
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="原文" :span="2">{{ requirement.raw_text }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <StatusTag group="requirement" :value="requirement.status" />
-          </el-descriptions-item>
-          <el-descriptions-item label="自报等级">{{ requirement.claimed_level || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="最终等级">{{ requirement.final_level || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="提交人">{{ requirement.author || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="来源">{{ requirement.source_ref || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="提交时间">{{ formatTime(requirement.created_at) }}</el-descriptions-item>
-          <el-descriptions-item label="关联条目">
-            <span v-if="!(requirement.related_item_ids || []).length">—</span>
-            <el-tag
-              v-for="id in requirement.related_item_ids"
-              :key="id"
-              size="small"
-              class="relation-tag mono"
-            >{{ id }}</el-tag>
-          </el-descriptions-item>
-        </el-descriptions>
-      </el-card>
+      <!-- 原文置顶，不被摘要替代 -->
+      <div class="panel original-panel">
+        <div class="panel__head">
+          <span class="panel__title">原始表达</span>
+          <StatusTag group="requirement" :value="requirement.status" size="small" />
+        </div>
+        <div class="original-text">{{ requirement.raw_text }}</div>
+        <div class="queue-item__meta" style="margin-top: 10px">
+          <span class="muted">{{ requirement.author || '—' }}</span>
+          <span class="muted">{{ formatTime(requirement.created_at) }}</span>
+          <span class="muted">来源：{{ requirement.source_ref || '—' }}</span>
+        </div>
+        <div class="queue-item__meta" style="margin-top: 6px">
+          <el-tag size="small" effect="plain" type="info">自报 {{ requirement.claimed_level || '—' }}</el-tag>
+          <el-tag size="small" effect="plain" type="info">最终 {{ requirement.final_level || '—' }}</el-tag>
+        </div>
+        <el-alert
+          v-if="levelMismatch"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-top: 10px"
+          :title="`等级被调整：提交者自报 ${requirement.claimed_level}，最终 ${requirement.final_level}`"
+        />
+      </div>
 
       <el-row :gutter="16">
         <el-col :xs="24" :lg="14">
@@ -326,6 +326,21 @@ onMounted(() => {
             :loading="adviceLoading"
             :error="adviceError"
           >
+            <template #actions>
+              <el-button size="small" :loading="adviceLoading" @click="generateAdvice">
+                生成评估建议
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                plain
+                :disabled="!advice"
+                :loading="assessSubmitting"
+                @click="adoptAdvice"
+              >
+                采纳为人工评估
+              </el-button>
+            </template>
             <template v-if="advice">
               <div class="row">
                 <span>建议等级：<strong>{{ advice.draft.assessed_level }}</strong></span>
@@ -334,116 +349,28 @@ onMounted(() => {
               </div>
               <div v-if="advice.draft.related_item_ids.length" class="row">
                 <span>依据条目：</span>
-                <el-tag
-                  v-for="id in advice.draft.related_item_ids"
-                  :key="id"
-                  size="small"
-                  class="relation-tag mono"
-                >{{ id }}</el-tag>
+                <el-tag v-for="id in advice.draft.related_item_ids" :key="id" size="small" class="mono">
+                  {{ id }}
+                </el-tag>
               </div>
               <div v-if="advice.draft.impact_summary">影响摘要：{{ advice.draft.impact_summary }}</div>
               <div v-if="(advice.draft.uncertainties || []).length">
                 不确定项：{{ advice.draft.uncertainties.join('；') }}
               </div>
             </template>
-            <div v-else-if="!adviceLoading" class="muted">
-              尚未生成评估建议。可点击「生成 AI 评估建议」获取模型建议；建议未生效，需人工采纳。
-            </div>
-
-            <template #actions>
-              <el-button size="small" type="primary" plain :loading="adviceLoading" @click="generateAdvice">
-                生成 AI 评估建议
-              </el-button>
-            </template>
+            <div v-else class="muted">尚未生成建议。建议只是参考，采纳后会转成人工评估。</div>
           </SuggestionCard>
 
-          <el-card shadow="never" class="card-gap">
-            <template #header>
-              <div class="card-header">
-                <span>采纳 AI 建议（人工确认后写入评估）</span>
-                <span class="muted">可修改等级与关联条目后再采纳</span>
-              </div>
-            </template>
-            <el-form :model="adoptForm" label-width="96px">
-              <el-form-item label="评估等级">
-                <el-select v-model="adoptForm.assessed_level" style="width: 200px">
-                  <el-option
-                    v-for="value in OPTIONS.assessmentLevels"
-                    :key="value"
-                    :label="value"
-                    :value="value"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="建议动作">
-                <el-select v-model="adoptForm.proposed_action" clearable style="width: 200px">
-                  <el-option
-                    v-for="value in OPTIONS.proposedActions"
-                    :key="value"
-                    :label="value"
-                    :value="value"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="关联条目">
-                <el-select
-                  v-model="adoptForm.related_item_ids"
-                  multiple
-                  filterable
-                  style="width: 100%"
-                  placeholder="选择依据的主干条目"
-                >
-                  <el-option
-                    v-for="option in relatedItemOptions"
-                    :key="option.value"
-                    :label="option.label"
-                    :value="option.value"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="影响摘要">
-                <el-input v-model="adoptForm.impact_summary" type="textarea" :rows="2" />
-              </el-form-item>
-              <el-form-item label="不确定项">
-                <el-input v-model="adoptForm.uncertainties" type="textarea" :rows="2" placeholder="每行一条" />
-              </el-form-item>
-              <el-form-item label="评估人">
-                <el-input v-model="adoptForm.assessor_id" placeholder="可选，具名人员" style="width: 200px" />
-              </el-form-item>
-              <el-form-item>
-                <el-button
-                  type="primary"
-                  :loading="assessSubmitting"
-                  :disabled="!advice"
-                  @click="adoptAdvice"
-                >
-                  采纳并记录评估
-                </el-button>
-                <el-tooltip
-                  v-if="!advice"
-                  content="请先生成 AI 评估建议，再采纳"
-                  placement="top"
-                >
-                  <span class="muted" style="margin-left: 8px">未生效建议不能直接采纳</span>
-                </el-tooltip>
-              </el-form-item>
-            </el-form>
-          </el-card>
-
-          <el-card shadow="never" class="card-gap">
-            <template #header>人工评估（直接填写）</template>
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">人工评估（已确认，生效）</span>
+              <el-button size="small" type="primary" plain :loading="assessSubmitting" @click="submitAssessment">
+                保存评估
+              </el-button>
+            </div>
             <el-form :model="assessForm" label-width="96px">
-              <el-form-item label="评估者类型">
-                <el-radio-group v-model="assessForm.assessor_type">
-                  <el-radio-button
-                    v-for="value in OPTIONS.assessorTypes"
-                    :key="value"
-                    :value="value"
-                  >{{ value }}</el-radio-button>
-                </el-radio-group>
-              </el-form-item>
               <el-form-item label="评估等级">
-                <el-select v-model="assessForm.assessed_level" style="width: 200px">
+                <el-select v-model="assessForm.assessed_level">
                   <el-option
                     v-for="value in OPTIONS.assessmentLevels"
                     :key="value"
@@ -452,24 +379,8 @@ onMounted(() => {
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item label="建议动作">
-                <el-select v-model="assessForm.proposed_action" clearable style="width: 200px">
-                  <el-option
-                    v-for="value in OPTIONS.proposedActions"
-                    :key="value"
-                    :label="value"
-                    :value="value"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="关联条目">
-                <el-select
-                  v-model="assessForm.related_item_ids"
-                  multiple
-                  filterable
-                  style="width: 100%"
-                  placeholder="选择依据的主干条目"
-                >
+              <el-form-item label="关联主干">
+                <el-select v-model="assessForm.related_item_ids" multiple filterable style="width: 100%">
                   <el-option
                     v-for="option in relatedItemOptions"
                     :key="option.value"
@@ -485,170 +396,132 @@ onMounted(() => {
                 <el-input v-model="assessForm.uncertainties" type="textarea" :rows="2" placeholder="每行一条" />
               </el-form-item>
               <el-form-item label="评估人">
-                <el-input v-model="assessForm.assessor_id" placeholder="可选，具名人员" style="width: 200px" />
-              </el-form-item>
-              <el-form-item>
-                <el-button type="primary" :loading="assessSubmitting" @click="submitAssessment">
-                  记录评估
-                </el-button>
+                <el-input v-model="assessForm.assessor_id" />
               </el-form-item>
             </el-form>
-          </el-card>
+          </div>
 
-          <el-card shadow="never" class="card-gap">
-            <template #header>人工决定</template>
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">决定（人确认后才生效）</span>
+            </div>
             <el-form :model="decisionForm" label-width="96px">
               <el-form-item label="结论">
-                <el-select v-model="decisionForm.conclusion" style="width: 220px">
-                  <el-option
-                    v-for="value in OPTIONS.conclusions"
-                    :key="value"
-                    :label="value"
-                    :value="value"
-                  />
+                <el-select v-model="decisionForm.conclusion">
+                  <el-option v-for="value in OPTIONS.conclusions" :key="value" :label="value" :value="value" />
                 </el-select>
               </el-form-item>
-              <el-form-item label="最终等级">
-                <el-select v-model="decisionForm.final_level" clearable style="width: 200px">
+              <el-form-item v-if="['accepted', 'relevelled'].includes(decisionForm.conclusion)" label="最终等级">
+                <el-select v-model="decisionForm.final_level">
                   <el-option v-for="value in OPTIONS.levels" :key="value" :label="value" :value="value" />
                 </el-select>
+              </el-form-item>
+              <el-form-item label="确认人">
+                <el-input v-model="decisionForm.confirmed_by" />
               </el-form-item>
               <el-form-item label="理由">
                 <el-input v-model="decisionForm.reason" type="textarea" :rows="2" />
               </el-form-item>
-              <el-form-item label="确认人">
-                <el-input v-model="decisionForm.confirmed_by" style="width: 220px" placeholder="必填" />
-              </el-form-item>
-              <el-form-item>
-                <el-tooltip :disabled="decisionReady" :content="decisionHint" placement="top">
-                  <span>
-                    <el-button
-                      type="primary"
-                      :loading="decisionSubmitting"
-                      :disabled="!decisionReady"
-                      @click="submitDecision"
-                    >
-                      记录决定
-                    </el-button>
-                  </span>
-                </el-tooltip>
-                <span v-if="!decisionReady" class="muted" style="margin-left: 8px">{{ decisionHint }}</span>
-              </el-form-item>
             </el-form>
-          </el-card>
-        </el-col>
-
-        <el-col :xs="24" :lg="10">
-          <el-card shadow="never" class="card-gap">
-            <template #header>
-              <div class="card-header">
-                <span>任务草稿（AI，未生效）</span>
-                <el-button size="small" type="primary" plain :loading="planLoading" @click="generatePlan">
-                  生成任务草稿
+            <el-tooltip :disabled="decisionReady" :content="decisionHint" placement="top">
+              <span>
+                <el-button type="primary" :disabled="!decisionReady" :loading="decisionSubmitting" @click="submitDecision">
+                  记录决定
                 </el-button>
-              </div>
-            </template>
+              </span>
+            </el-tooltip>
+            <span v-if="decisionHint" class="muted" style="margin-left: 8px">{{ decisionHint }}</span>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">任务草稿（未生效，采纳后才创建并开放）</span>
+              <el-button size="small" :loading="planLoading" @click="generatePlan">生成任务草稿</el-button>
+            </div>
             <el-alert
               v-if="planError"
               type="error"
-              :title="planError"
               :closable="false"
               show-icon
+              :title="planError"
               style="margin-bottom: 10px"
             />
-            <EmptyState
-              v-if="!plan && !planLoading"
-              description="尚未生成任务草稿；生成后需人工确认才会创建任务"
-              :height="'120px'"
-            />
-            <div v-if="plan && plan.draft.length > 0">
-              <div v-for="(task, index) in plan.draft" :key="index" class="plan-task">
-                <div><strong>{{ index + 1 }}. {{ task.purpose }}</strong></div>
-                <div class="muted">完成条件：{{ (task.done_when || []).join('；') }}</div>
-                <div v-if="task.scope" class="muted">范围：{{ task.scope }}</div>
-                <div v-if="task.non_scope" class="muted">非范围：{{ task.non_scope }}</div>
-                <div v-if="(task.serves_item_ids || []).length" class="muted mono">
-                  服务条目：{{ task.serves_item_ids.join('，') }}
+            <EmptyState v-if="!plan" description="尚未生成任务草稿" :height="'80px'" />
+            <div v-else>
+              <div v-for="(item, index) in plan.draft" :key="index" class="plan-item">
+                <div class="plan-item__head">
+                  <strong>{{ item.purpose }}</strong>
+                  <el-tag size="small" effect="plain" type="info">服务 {{ (item.serves_item_ids || []).join('，') || '探索任务' }}</el-tag>
                 </div>
-                <div v-if="task.related_question" class="muted">探索问题：{{ task.related_question }}</div>
+                <div class="muted">范围：{{ item.scope || '—' }}　非目标：{{ item.non_scope || '—' }}</div>
+                <ul class="done-list">
+                  <li v-for="(done, i) in item.done_when || []" :key="i">{{ done }}</li>
+                </ul>
               </div>
-              <el-button
-                type="primary"
-                :loading="planAdopting"
-                @click="adoptPlan"
-              >
+              <el-button type="primary" plain :loading="planAdopting" @click="adoptPlan">
                 采纳并创建任务
               </el-button>
-              <div class="muted" style="margin-top: 6px">
-                采纳后任务将创建并进入可认领（open）状态。
-              </div>
             </div>
-            <EmptyState
-              v-else-if="plan && plan.draft.length === 0 && !planLoading"
-              description="模型未给出任务草稿"
-              :height="'120px'"
-            />
-          </el-card>
+          </div>
+        </el-col>
 
-          <el-card shadow="never" class="card-gap">
-            <template #header>已关联任务</template>
-            <EmptyState v-if="tasks.length === 0" description="该需求还没有任务" :height="'120px'" />
-            <el-table v-else :data="tasks" size="small" @row-click="openTask">
-              <el-table-column prop="purpose" label="目标" min-width="160" show-overflow-tooltip />
-              <el-table-column label="状态" width="110">
-                <template #default="{ row }"><StatusTag group="task" :value="row.status" /></template>
-              </el-table-column>
-            </el-table>
-          </el-card>
-
-          <el-card shadow="never" class="card-gap">
-            <template #header>评估记录</template>
-            <EmptyState v-if="assessments.length === 0" description="还没有评估记录" :height="'120px'" />
-            <div v-for="row in assessments" :key="row.assessment_id" class="record">
-              <div class="record-head">
-                <StatusTag group="assessor" :value="row.assessor_type" />
-                <span class="mono">{{ row.assessment_id }}</span>
-                <span class="muted">{{ formatTime(row.created_at) }}</span>
-              </div>
-              <div>等级：{{ row.assessed_level }}　建议动作：{{ row.proposed_action || '—' }}</div>
-              <div v-if="(row.related_item_ids || []).length" class="muted mono">
-                关联：{{ row.related_item_ids.join('，') }}
-              </div>
-              <div v-if="row.impact_summary" class="muted">影响：{{ row.impact_summary }}</div>
+        <el-col :xs="24" :lg="10">
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">已拆解任务（{{ tasks.length }}）</span>
             </div>
-          </el-card>
-
-          <el-card shadow="never" class="card-gap">
-            <template #header>决定记录</template>
-            <EmptyState v-if="decisions.length === 0" description="还没有决定记录" :height="'120px'" />
-            <div v-for="row in decisions" :key="row.decision_id" class="record">
-              <div class="record-head">
-                <StatusTag group="decision" :value="row.conclusion" />
-                <span class="mono">{{ row.decision_id }}</span>
-                <span class="muted">{{ formatTime(row.confirmed_at) }}</span>
+            <EmptyState v-if="tasks.length === 0" description="尚未拆解任务" :height="'100px'" />
+            <div
+              v-for="task in tasks"
+              :key="task.task_id"
+              class="queue-item clickable"
+              @click="openTask(task)"
+            >
+              <div class="queue-item__title">{{ task.purpose }}</div>
+              <div class="queue-item__meta">
+                <StatusTag group="task" :value="task.status" size="small" />
+                <span class="muted">服务 {{ (task.serves_item_ids || []).length }} 条主干</span>
               </div>
-              <div>最终等级：{{ row.final_level || '—' }}　确认人：{{ row.confirmed_by }}</div>
-              <div v-if="row.reason" class="muted">理由：{{ row.reason }}</div>
+              <ul class="done-list">
+                <li v-for="(done, i) in task.done_when || []" :key="i">{{ done }}</li>
+              </ul>
             </div>
-          </el-card>
+          </div>
 
-          <el-card shadow="never" class="card-gap">
-            <template #header>事件时间线</template>
-            <EmptyState v-if="timeline.length === 0" description="暂无事件" :height="'120px'" />
-            <el-timeline v-else>
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">评估与决定记录</span>
+            </div>
+            <el-timeline>
               <el-timeline-item
-                v-for="event in timeline"
-                :key="event.event_id"
-                :timestamp="formatTime(event.occurred_at)"
+                v-for="item in assessments"
+                :key="item.assessment_id"
+                :timestamp="formatTime(item.created_at)"
                 placement="top"
               >
-                <div><strong>{{ event.event_type }}</strong>
-                  <span v-if="event.actor" class="muted">　操作人：{{ event.actor }}</span>
+                <div class="event-head">
+                  <el-tag size="small" effect="plain" type="warning">{{ item.assessor_type }}</el-tag>
+                  <strong>{{ item.assessed_level }}</strong>
+                  <span class="muted">建议 {{ item.proposed_action || '—' }}</span>
                 </div>
-                <div v-if="event.reason" class="muted">{{ event.reason }}</div>
+                <div v-if="item.impact_summary" class="muted">{{ item.impact_summary }}</div>
+              </el-timeline-item>
+              <el-timeline-item
+                v-for="item in decisions"
+                :key="item.decision_id"
+                :timestamp="formatTime(item.confirmed_at)"
+                placement="top"
+              >
+                <div class="event-head">
+                  <strong>{{ item.conclusion }}</strong>
+                  <span v-if="item.final_level" class="muted">最终 {{ item.final_level }}</span>
+                  <span class="muted">{{ item.confirmed_by }}</span>
+                </div>
+                <div v-if="item.reason" class="muted">{{ item.reason }}</div>
               </el-timeline-item>
             </el-timeline>
-          </el-card>
+            <el-empty v-if="!assessments.length && !decisions.length" description="暂无记录" :image-size="60" />
+          </div>
         </el-col>
       </el-row>
     </template>
@@ -656,34 +529,35 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.relation-tag {
-  margin-right: 6px;
+.original-text {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--sap-text);
 }
 
-.card-header {
+.plan-item {
+  border: 1px solid var(--sap-border-soft);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.plan-item__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-}
-
-.plan-task {
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  background: #fafafa;
-}
-
-.record {
-  border-top: 1px solid #f0f2f5;
-  padding: 8px 0;
-}
-
-.record-head {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.done-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--sap-text-secondary);
+}
+
+.done-list li {
+  margin-bottom: 2px;
 }
 </style>

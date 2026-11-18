@@ -75,6 +75,10 @@ export const ROUTES = [
   ...SETUP_ROUTES,
 ];
 
+/** 面板与接口的统一前缀（见 docs/08 §1）。 */
+export const API_PREFIX = '/sap-cloud/api';
+export const APP_PREFIX = '/sap-cloud';
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -106,7 +110,7 @@ const FRIENDLY_HTML = `<!doctype html>
     <p style="color:#606266;line-height:1.8">Center 已启动，但还没有前端构建产物。请先执行：</p>
     <pre style="background:#f5f7fa;padding:10px 12px;border-radius:6px;font-size:13px">npm --prefix web install
 npm --prefix web run build</pre>
-    <p style="color:#909399;font-size:13px;line-height:1.8">构建后刷新本页面即可打开面板；接口（/healthz、/projects 等）不受影响。</p>
+    <p style="color:#909399;font-size:13px;line-height:1.8">构建后刷新本页面即可打开面板；接口位于 <code>/sap-cloud/api/*</code>，不受影响。</p>
   </div>
 </body>
 </html>`;
@@ -246,6 +250,63 @@ export function statusForError(err) {
   return 500;
 }
 
+/** 308 永久重定向：用于旧路径迁移到新前缀。 */
+function sendRedirect(res, location) {
+  res.writeHead(308, { location, 'content-length': 0 });
+  res.end();
+}
+
+/** 构造仅替换 pathname、保留 query 的 URL 视图，供 handler 使用。 */
+function withPathname(rawUrl, pathname) {
+  const next = new URL(rawUrl.toString());
+  next.pathname = pathname;
+  return next;
+}
+
+/** 处理已剥掉 API 前缀的请求；返回 true 表示已响应。 */
+async function handleApiRequest(req, res, routes, db, url, pathForMessage) {
+  const { route, params, allowed, pathMatched } = matchRoute(routes, req.method, url.pathname);
+
+  if (!route) {
+    const headers = pathMatched && allowed.length > 0 ? { allow: allowed.join(', ') } : {};
+    sendJson(
+      res,
+      pathMatched ? 405 : 404,
+      {
+        ok: false,
+        error: pathMatched ? 'method_not_allowed' : 'not_found',
+        method: req.method,
+        path: pathForMessage,
+      },
+      headers,
+    );
+    return true;
+  }
+
+  // 浏览器直接刷新「页面与 API 同名」的路径时优先返回 SPA；
+  // 前端 fetch 的 Accept 为 */*，仍走下面的 API 路由。
+  if (req.method === 'GET' && isSpaPagePath(url.pathname) && acceptsHtml(req.headers.accept)) {
+    serveIndexPage(res, req.method);
+    return true;
+  }
+
+  const body = await readJsonBody(req);
+  const result = await route.handler({ req, url, body, params, db });
+
+  // 只有显式给出数字 status 且带 body 才视为响应包装；
+  // 否则视为普通数据行（业务行可能自身含有 status 字段）。
+  if (
+    result
+    && typeof result.status === 'number'
+    && Object.prototype.hasOwnProperty.call(result, 'body')
+  ) {
+    sendJson(res, result.status, result.body);
+  } else {
+    sendJson(res, 200, result);
+  }
+  return true;
+}
+
 /**
  * 创建 Center HTTP 服务。
  * @param {import('node:sqlite').DatabaseSync} db 已打开的数据库
@@ -257,51 +318,74 @@ export function createServer(db, options = {}) {
 
   return http.createServer(async (req, res) => {
     try {
-      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      const { route, params, allowed, pathMatched } = matchRoute(routes, req.method, url.pathname);
+      const rawUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const { pathname } = rawUrl;
 
-      if (!route) {
-        // 静态托管：仅在 GET/HEAD 且路径未匹配任何 API 路由时介入，
-        // 保证 /healthz 等 API 与 404/405 JSON 行为不被吞掉。
+      // 1) 站点根：迁到面板基址。
+      if (pathname === '/') {
+        sendRedirect(res, `${APP_PREFIX}/`);
+        return;
+      }
+
+      // 2) 新 API 前缀：剥前缀后按原路由匹配，query 保留。
+      if (pathname === API_PREFIX || pathname.startsWith(`${API_PREFIX}/`)) {
+        const apiPath = pathname.slice(API_PREFIX.length) || '/';
+        await handleApiRequest(req, res, routes, db, withPathname(rawUrl, apiPath), apiPath);
+        return;
+      }
+
+      // 3) 新面板前缀：剥前缀后走静态托管与 SPA 回落。
+      if (pathname === APP_PREFIX || pathname.startsWith(`${APP_PREFIX}/`)) {
+        const appPath = pathname.slice(APP_PREFIX.length) || '/';
         if (req.method === 'GET' || req.method === 'HEAD') {
-          if (serveStatic(res, url.pathname, req.headers.accept, req.method)) return;
+          if (serveStatic(res, appPath, req.headers.accept, req.method)) return;
+          sendJson(res, 404, { ok: false, error: 'not_found', method: req.method, path: appPath });
+          return;
         }
-        const headers = pathMatched && allowed.length > 0 ? { allow: allowed.join(', ') } : {};
-        sendJson(
-          res,
-          pathMatched ? 405 : 404,
-          {
-            ok: false,
-            error: pathMatched ? 'method_not_allowed' : 'not_found',
-            method: req.method,
-            path: url.pathname,
-          },
-          headers,
-        );
+        sendJson(res, 405, {
+          ok: false,
+          error: 'method_not_allowed',
+          method: req.method,
+          path: appPath,
+        });
         return;
       }
 
-      // 浏览器刷新前端页面路径（如 /requirements、/tasks/:id）时优先返回 SPA；
-      // 前端 fetch 的 Accept 为 */*，仍走下面的 API 路由。
-      if (req.method === 'GET' && isSpaPagePath(url.pathname) && acceptsHtml(req.headers.accept)) {
-        serveIndexPage(res, req.method);
+      // 4) 旧路径：API 与页面分别迁移；写操作给出明确提示。
+      const legacy = matchRoute(routes, req.method, pathname);
+      const isApiPath = Boolean(legacy.route) || legacy.pathMatched;
+      const isPagePath = !isApiPath && isSpaPagePath(pathname);
+
+      if (isApiPath) {
+        if (req.method === 'GET' || req.method === 'HEAD') {
+          // 同一路径既是旧 API 又是旧页面时（如 /requirements）：
+          // 浏览器导航去面板，接口调用去 API。
+          const target = acceptsHtml(req.headers.accept) && isSpaPagePath(pathname)
+            ? `${APP_PREFIX}${pathname}`
+            : `${API_PREFIX}${pathname}`;
+          sendRedirect(res, target);
+          return;
+        }
+        sendJson(res, 410, {
+          ok: false,
+          error: '接口已迁移到 /sap-cloud/api，请使用新路径',
+          code: 'API_PREFIX_REQUIRED',
+          path: pathname,
+        });
         return;
       }
 
-      const body = await readJsonBody(req);
-      const result = await route.handler({ req, url, body, params, db });
-
-      // 只有显式给出数字 status 且带 body 才视为响应包装；
-      // 否则视为普通数据行（业务行可能自身含有 status 字段）。
-      if (
-        result
-        && typeof result.status === 'number'
-        && Object.prototype.hasOwnProperty.call(result, 'body')
-      ) {
-        sendJson(res, result.status, result.body);
-      } else {
-        sendJson(res, 200, result);
+      if (isPagePath && (req.method === 'GET' || req.method === 'HEAD')) {
+        sendRedirect(res, `${APP_PREFIX}${pathname}`);
+        return;
       }
+
+      sendJson(res, 404, {
+        ok: false,
+        error: 'not_found',
+        method: req.method,
+        path: pathname,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       sendJson(res, statusForError(err), {

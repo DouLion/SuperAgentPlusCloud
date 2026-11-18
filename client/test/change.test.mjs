@@ -1,4 +1,4 @@
-// Client 主干变更与影响处置命令测试（T5）：用 node:http 假 Center 验证
+﻿// Client 主干变更与影响处置命令测试（T5）：用 node:http 假 Center 验证
 // change / impact 的请求体、参数校验与 409 错误透出。
 // 运行：node --test client/test/
 
@@ -29,6 +29,8 @@ function startFakeCenter() {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url, 'http://127.0.0.1');
+      // 假 Center 按剥掉 /sap-cloud/api 前缀后的路径匹配。
+      const path = url.pathname.replace(/^\/sap-cloud\/api/, '');
       const raw = Buffer.concat(chunks).toString('utf8');
       let body = {};
       if (raw) {
@@ -46,7 +48,7 @@ function startFakeCenter() {
         res.end(data);
       };
 
-      let matched = url.pathname.match(/^\/trunk-changes$/);
+      let matched = path.match(/^\/trunk-changes$/);
       if (req.method === 'GET' && matched) {
         return send(200, [...state.changes.values()]);
       }
@@ -73,14 +75,14 @@ function startFakeCenter() {
         return send(201, change);
       }
 
-      matched = url.pathname.match(/^\/trunk-changes\/([^/]+)$/);
+      matched = path.match(/^\/trunk-changes\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const change = state.changes.get(matched[1]);
         if (!change) return send(404, { ok: false, error: `主干变更不存在：${matched[1]}` });
         return send(200, change);
       }
 
-      matched = url.pathname.match(/^\/trunk-changes\/([^/]+)\/confirm$/);
+      matched = path.match(/^\/trunk-changes\/([^/]+)\/confirm$/);
       if (req.method === 'POST' && matched) {
         const change = state.changes.get(matched[1]);
         if (!change) return send(404, { ok: false, error: `主干变更不存在：${matched[1]}` });
@@ -99,7 +101,7 @@ function startFakeCenter() {
         return send(200, change);
       }
 
-      matched = url.pathname.match(/^\/trunk-changes\/([^/]+)\/activate$/);
+      matched = path.match(/^\/trunk-changes\/([^/]+)\/activate$/);
       if (req.method === 'POST' && matched) {
         const change = state.changes.get(matched[1]);
         if (!change) return send(404, { ok: false, error: `主干变更不存在：${matched[1]}` });
@@ -116,7 +118,7 @@ function startFakeCenter() {
         return send(200, change);
       }
 
-      matched = url.pathname.match(/^\/trunk-changes\/([^/]+)\/close$/);
+      matched = path.match(/^\/trunk-changes\/([^/]+)\/close$/);
       if (req.method === 'POST' && matched) {
         const change = state.changes.get(matched[1]);
         if (!change) return send(404, { ok: false, error: `主干变更不存在：${matched[1]}` });
@@ -148,7 +150,7 @@ function startFakeCenter() {
         return send(200, change);
       }
 
-      matched = url.pathname.match(/^\/trunk-changes\/([^/]+)\/impacts$/);
+      matched = path.match(/^\/trunk-changes\/([^/]+)\/impacts$/);
       if (req.method === 'GET' && matched) {
         return send(200, [...state.impacts.values()]
           .filter((item) => item.change_id === matched[1]));
@@ -176,7 +178,7 @@ function startFakeCenter() {
         return send(201, impact);
       }
 
-      matched = url.pathname.match(/^\/impact-items\/([^/]+)$/);
+      matched = path.match(/^\/impact-items\/([^/]+)$/);
       if (req.method === 'PATCH' && matched) {
         const impact = state.impacts.get(matched[1]);
         if (!impact) return send(404, { ok: false, error: `影响项不存在：${matched[1]}` });
@@ -266,7 +268,7 @@ test('命令：change propose 组装请求体并输出变更与新条目', async
 
     const request = fake.state.requests[fake.state.requests.length - 1];
     assert.equal(request.method, 'POST');
-    assert.equal(request.path, '/trunk-changes');
+    assert.equal(request.path, '/sap-cloud/api/trunk-changes');
     assert.equal(request.body.project_id, 'prj_x');
     assert.equal(request.body.reason, '旧范围已不适用');
     assert.equal(request.body.trigger_requirement_id, 'req_x');
@@ -327,7 +329,7 @@ test('命令：change confirm / activate 请求体与输出', async () => {
     ], io), 0);
     assert.ok(lines.some((line) => line.includes('变更已确认')));
     let request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, `/trunk-changes/${created.change_id}/confirm`);
+    assert.equal(request.path, `/sap-cloud/api/trunk-changes/${created.change_id}/confirm`);
     assert.equal(request.body.confirmed_by, '张三');
     assert.equal(request.body.effective_at, '2026-11-19T00:00:00.000Z');
 
@@ -336,7 +338,7 @@ test('命令：change confirm / activate 请求体与输出', async () => {
     ], io), 0);
     assert.ok(lines.some((line) => line.includes('变更已生效')));
     request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, `/trunk-changes/${created.change_id}/activate`);
+    assert.equal(request.path, `/sap-cloud/api/trunk-changes/${created.change_id}/activate`);
     assert.deepEqual(request.body, { confirmed_by: '张三' });
   } finally {
     delete process.env.CENTER_URL;
@@ -428,7 +430,7 @@ test('命令：impact add / update 请求体与参数校验', async () => {
     assert.ok(lines.some((line) => line.includes('处置：pending')));
 
     let request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, `/trunk-changes/${change.change_id}/impacts`);
+    assert.equal(request.path, `/sap-cloud/api/trunk-changes/${change.change_id}/impacts`);
     assert.deepEqual(request.body, {
       target_type: 'task',
       target_id: 'task_a',
@@ -460,7 +462,7 @@ test('命令：impact add / update 请求体与参数校验', async () => {
 
     request = fake.state.requests[fake.state.requests.length - 1];
     assert.equal(request.method, 'PATCH');
-    assert.equal(request.path, `/impact-items/${impact.impact_item_id}`);
+    assert.equal(request.path, `/sap-cloud/api/impact-items/${impact.impact_item_id}`);
     assert.equal(request.body.assessment_status, 'not_affected');
     assert.equal(request.body.resolution, 'continue');
     assert.equal(request.body.reason, '该任务不依赖旧范围');

@@ -1,4 +1,4 @@
-// Client AI 命令测试（T8）：用 node:http 假 Center 验证
+﻿// Client AI 命令测试（T8）：用 node:http 假 Center 验证
 // advise / plan / impacts 的请求路径、输出标注与 503 未配置透出。
 // 运行：node --test client/test/
 
@@ -25,6 +25,8 @@ function startFakeCenter() {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url, 'http://127.0.0.1');
+      // 假 Center 按剥掉 /sap-cloud/api 前缀后的路径匹配。
+      const path = url.pathname.replace(/^\/sap-cloud\/api/, '');
       const raw = Buffer.concat(chunks).toString('utf8');
       state.requests.push({ method: req.method, path: req.url, body: raw ? JSON.parse(raw) : {} });
 
@@ -34,11 +36,11 @@ function startFakeCenter() {
         res.end(data);
       };
 
-      if (req.method === 'GET' && url.pathname === '/ai/health') {
+      if (req.method === 'GET' && path === '/ai/health') {
         return send(200, { configured: false, model: 'deepseek-chat', base_url: '' });
       }
 
-      let matched = url.pathname.match(/^\/requirements\/([^/]+)\/advice$/);
+      let matched = path.match(/^\/requirements\/([^/]+)\/advice$/);
       if (req.method === 'POST' && matched) {
         if (matched[1] === 'req_unconfigured') {
           return send(503, {
@@ -59,7 +61,7 @@ function startFakeCenter() {
         });
       }
 
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/plan$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/plan$/);
       if (req.method === 'POST' && matched) {
         return send(201, {
           suggestion,
@@ -73,7 +75,7 @@ function startFakeCenter() {
         });
       }
 
-      matched = url.pathname.match(/^\/trunk-changes\/([^/]+)\/advice$/);
+      matched = path.match(/^\/trunk-changes\/([^/]+)\/advice$/);
       if (req.method === 'POST' && matched) {
         return send(201, {
           suggestion,
@@ -127,7 +129,7 @@ test('命令：advise 未配置模型时中文透出 503 并非零退出', async
 
     const request = fake.state.requests[fake.state.requests.length - 1];
     assert.equal(request.method, 'POST');
-    assert.equal(request.path, '/requirements/req_unconfigured/advice');
+    assert.equal(request.path, '/sap-cloud/api/requirements/req_unconfigured/advice');
   } finally {
     delete process.env.CENTER_URL;
     await fake.close();
@@ -150,7 +152,7 @@ test('命令：advise 正常打印评估建议并标注「建议，未生效」'
     assert.ok(io.lines.some((line) => line.includes('建议动作：relevel')));
 
     const request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, '/requirements/req_ok/advice');
+    assert.equal(request.path, '/sap-cloud/api/requirements/req_ok/advice');
   } finally {
     delete process.env.CENTER_URL;
     await fake.close();
@@ -168,7 +170,7 @@ test('命令：plan / impacts 请求路径与未生效标注', async () => {
     assert.ok(planIo.lines.some((line) => line.includes('接口返回需求列表')));
     assert.ok(planIo.lines.some((line) => line.includes('服务条目：item_a')));
     let request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, '/requirements/req_ok/plan');
+    assert.equal(request.path, '/sap-cloud/api/requirements/req_ok/plan');
 
     const impactsIo = capture();
     assert.equal(await runImpacts(['--change', 'chg_ok'], impactsIo.io), 0);
@@ -176,7 +178,7 @@ test('命令：plan / impacts 请求路径与未生效标注', async () => {
     assert.ok(impactsIo.lines.some((line) => line.includes('task:task_a')));
     assert.ok(impactsIo.lines.some((line) => line.includes('该任务依赖旧范围')));
     request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, '/trunk-changes/chg_ok/advice');
+    assert.equal(request.path, '/sap-cloud/api/trunk-changes/chg_ok/advice');
   } finally {
     delete process.env.CENTER_URL;
     await fake.close();

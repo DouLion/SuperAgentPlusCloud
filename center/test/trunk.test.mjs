@@ -1,4 +1,4 @@
-// Center 主干条目确认与退役测试（T6）。
+﻿// Center 主干条目确认与退役测试（T6）。
 // 运行：node --test center/test/
 // 测试数据库使用系统临时目录，结束后删除。
 
@@ -167,7 +167,7 @@ test('HTTP：trunk-items 查询、确认、退役路由与状态码', async () =
 
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   try {
     const fetched = await fetch(`${base}/trunk-items/${proposed.item_id}`)

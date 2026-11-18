@@ -21,7 +21,7 @@ npx sap --help
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `CENTER_URL` | `http://127.0.0.1:8787` | Center 服务根地址 |
+| `CENTER_URL` | `http://127.0.0.1:8787` | Center 服务 origin；客户端自动追加 `/sap-cloud/api` |
 
 先启动 Center：`node center/bin/center.mjs`（默认端口 `CENTER_PORT=8787`）。
 

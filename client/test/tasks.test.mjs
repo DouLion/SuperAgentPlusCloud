@@ -1,4 +1,4 @@
-// Client 任务与认领测试（T3）：用 node:http 假 Center 验证
+﻿// Client 任务与认领测试（T3）：用 node:http 假 Center 验证
 // tasks / claim / release 的请求路径、参数与错误透出。
 // 运行：node --test client/test/
 
@@ -60,6 +60,8 @@ function startFakeCenter() {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url, 'http://127.0.0.1');
+      // 假 Center 按剥掉 /sap-cloud/api 前缀后的路径匹配。
+      const path = url.pathname.replace(/^\/sap-cloud\/api/, '');
       const raw = Buffer.concat(chunks).toString('utf8');
       let body = {};
       if (raw) {
@@ -77,7 +79,7 @@ function startFakeCenter() {
         res.end(data);
       };
 
-      let matched = url.pathname.match(/^\/tasks$/);
+      let matched = path.match(/^\/tasks$/);
       if (req.method === 'GET' && matched) {
         let tasks = state.tasks;
         if (url.searchParams.get('project_id')) {
@@ -94,7 +96,7 @@ function startFakeCenter() {
         return send(200, tasks);
       }
 
-      matched = url.pathname.match(/^\/tasks\/([^/]+)\/claim$/);
+      matched = path.match(/^\/tasks\/([^/]+)\/claim$/);
       if (req.method === 'POST' && matched) {
         const task = state.tasks.find((t) => t.task_id === matched[1]);
         if (!task) return send(404, { ok: false, error: `任务不存在：${matched[1]}` });
@@ -118,7 +120,7 @@ function startFakeCenter() {
         return send(201, { task, claim });
       }
 
-      matched = url.pathname.match(/^\/tasks\/([^/]+)\/release$/);
+      matched = path.match(/^\/tasks\/([^/]+)\/release$/);
       if (req.method === 'POST' && matched) {
         const claim = state.claims.find(
           (c) => c.task_id === matched[1] && c.status === 'active',
@@ -144,12 +146,12 @@ function startFakeCenter() {
         return send(201, { task, claim });
       }
 
-      matched = url.pathname.match(/^\/tasks\/([^/]+)\/claims$/);
+      matched = path.match(/^\/tasks\/([^/]+)\/claims$/);
       if (req.method === 'GET' && matched) {
         return send(200, state.claims.filter((c) => c.task_id === matched[1]));
       }
 
-      matched = url.pathname.match(/^\/tasks\/([^/]+)$/);
+      matched = path.match(/^\/tasks\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const task = state.tasks.find((t) => t.task_id === matched[1]);
         if (!task) return send(404, { ok: false, error: `任务不存在：${matched[1]}` });
@@ -201,11 +203,11 @@ test('api：tasks / claim / release 的请求路径、查询参数与请求体',
     assert.deepEqual(
       fake.state.requests.map((r) => `${r.method} ${r.path}`),
       [
-        'GET /tasks?project_id=prj_x&status=open',
-        'GET /tasks?project_id=prj_x',
-        'POST /tasks/task_a/claim',
-        'POST /tasks/task_a/release',
-        'GET /tasks/task_a/claims',
+        'GET /sap-cloud/api/tasks?project_id=prj_x&status=open',
+        'GET /sap-cloud/api/tasks?project_id=prj_x',
+        'POST /sap-cloud/api/tasks/task_a/claim',
+        'POST /sap-cloud/api/tasks/task_a/release',
+        'GET /sap-cloud/api/tasks/task_a/claims',
       ],
     );
     assert.equal(fake.state.requests[2].body.worker_id, 'worker_a');

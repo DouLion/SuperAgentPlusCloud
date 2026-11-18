@@ -3,13 +3,14 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
-import { formatTime, OPTIONS } from '../status.js';
+import { formatTime } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
+import { go } from '../nav.js';
 
 const route = useRoute();
 const router = useRouter();
-const taskId = route.params.id;
+const taskId = route.params.taskId;
 
 const loading = ref(false);
 const task = ref(null);
@@ -17,7 +18,7 @@ const claims = ref([]);
 const submissions = ref([]);
 const reviewsMap = ref({});
 
-const workerId = ref('');
+const workerId = ref(localStorage.getItem('sap.workerId') || '');
 const claimSubmitting = ref(false);
 const releaseSubmitting = ref(false);
 
@@ -45,11 +46,6 @@ const reviewForm = reactive({
   reason: '',
   criteria: [{ criterion: '', result: '', evidence: '' }],
 });
-const reviewRules = {
-  submission_id: [{ required: true, message: '请选择提交', trigger: 'change' }],
-  reviewer_id: [{ required: true, message: '请填写评审人', trigger: 'blur' }],
-  conclusion: [{ required: true, message: '请选择评审结论', trigger: 'change' }],
-};
 
 const activeClaim = computed(() => claims.value.find((claim) => claim.status === 'active') || null);
 
@@ -70,14 +66,21 @@ const canRelease = computed(() => Boolean(activeClaim.value));
 const canSubmit = computed(() => task.value?.status === 'claimed' && Boolean(activeClaim.value));
 const canReview = computed(() => submissions.value.length > 0);
 
-const timelineEvents = computed(() => {
+const claimHint = computed(() => {
+  if (!workerId.value.trim()) return '请先填写工作者 ID';
+  if (!canClaim.value) return `当前状态 ${task.value?.status} 不可认领`;
+  return '';
+});
+
+const deliveryChain = computed(() => {
   const events = [];
   for (const claim of claims.value) {
     events.push({
       key: claim.claim_id,
       time: claim.claimed_at,
-      title: `认领：${claim.worker_id}（${claim.status}）`,
-      detail: claim.released_at ? `释放时间：${formatTime(claim.released_at)}` : '当前持有任务',
+      title: `认领：${claim.worker_id}`,
+      detail: claim.released_at ? `释放于 ${formatTime(claim.released_at)}` : '当前持有任务',
+      tag: { group: 'claim', value: claim.status },
     });
   }
   for (const submission of submissions.value) {
@@ -85,14 +88,16 @@ const timelineEvents = computed(() => {
       key: submission.submission_id,
       time: submission.submitted_at,
       title: `提交：${submission.summary || submission.submission_id}`,
-      detail: `提交人：${submission.submitted_by}`,
+      detail: `提交人 ${submission.submitted_by}`,
+      tag: { group: 'task', value: 'submitted' },
     });
     for (const review of reviewsMap.value[submission.submission_id] || []) {
       events.push({
         key: review.review_id,
         time: review.reviewed_at,
-        title: `评审：${review.conclusion}（评审人 ${review.reviewer_id}）`,
+        title: `评审：${review.conclusion}（${review.reviewer_id}）`,
         detail: review.reason || (review.criterion_results || []).map((item) => `${item.criterion}=${item.result}`).join('；'),
+        tag: { group: 'review', value: review.conclusion },
       });
     }
   }
@@ -111,19 +116,24 @@ async function load() {
     claims.value = claimRows;
     submissions.value = submissionRows;
     const reviews = await Promise.all(
-      submissionRows.map((submission) => api.listReviews(submission.submission_id)),
+      submissionRows.map((submission) => api.listReviews(submission.submission_id).catch(() => [])),
     );
     const map = {};
     submissionRows.forEach((submission, index) => {
       map[submission.submission_id] = reviews[index];
     });
     reviewsMap.value = map;
-    if (activeClaim.value) workerId.value = activeClaim.value.worker_id;
+    if (activeClaim.value && !workerId.value) workerId.value = activeClaim.value.worker_id;
   } catch (err) {
     ElMessage.error(errorMessage(err, '加载任务详情失败'));
   } finally {
     loading.value = false;
   }
+}
+
+function saveWorker() {
+  if (workerId.value.trim()) localStorage.setItem('sap.workerId', workerId.value.trim());
+  else localStorage.removeItem('sap.workerId');
 }
 
 async function claim() {
@@ -166,7 +176,7 @@ function openSubmit() {
     summary: '',
     self_test: '',
     known_gaps: '',
-    submitted_by: activeClaim.value?.worker_id || '',
+    submitted_by: activeClaim.value?.worker_id || workerId.value,
   });
   submitVisible.value = true;
 }
@@ -193,8 +203,7 @@ async function submitDelivery() {
       commit_refs: refs,
       summary: submitForm.summary,
       self_test: submitForm.self_test || undefined,
-      known_gaps: submitForm.known_gaps
-        .split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      known_gaps: submitForm.known_gaps.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
       submitted_by: submitForm.submitted_by,
     });
     ElMessage.success(`提交已登记：${created.submission_id}，任务进入待评审`);
@@ -211,20 +220,12 @@ function openReview() {
   const last = submissions.value[submissions.value.length - 1];
   Object.assign(reviewForm, {
     submission_id: last?.submission_id || '',
-    reviewer_id: '',
+    reviewer_id: workerId.value || '',
     conclusion: '',
     reason: '',
     criteria: [{ criterion: '', result: '', evidence: '' }],
   });
   reviewVisible.value = true;
-}
-
-function addCriterion() {
-  reviewForm.criteria.push({ criterion: '', result: '', evidence: '' });
-}
-
-function removeCriterion(index) {
-  reviewForm.criteria.splice(index, 1);
 }
 
 async function submitReview() {
@@ -263,7 +264,7 @@ async function submitReview() {
 
 onMounted(() => {
   if (!taskId) {
-    router.replace('/projects');
+    go(router, 'projects');
     return;
   }
   load();
@@ -284,238 +285,208 @@ onMounted(() => {
     </div>
 
     <EmptyState v-if="!loading && !task" description="任务不存在或加载失败" :height="'200px'">
-      <el-button @click="router.push('/projects')">返回项目列表</el-button>
+      <el-button @click="go(router, 'projects')">返回项目列表</el-button>
     </EmptyState>
 
     <template v-else-if="task">
-      <el-card shadow="never" class="card-gap">
-        <template #header>任务信息</template>
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="状态">
-            <StatusTag group="task" :value="task.status" />
-          </el-descriptions-item>
-          <el-descriptions-item label="需求">
-            <span class="mono">{{ task.requirement_id || '—' }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="目标" :span="2">{{ task.purpose }}</el-descriptions-item>
-          <el-descriptions-item label="范围" :span="2">{{ task.scope || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="非范围" :span="2">{{ task.non_scope || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="完成条件" :span="2">
-            <div v-for="(item, index) in task.done_when" :key="index">· {{ item }}</div>
-          </el-descriptions-item>
-          <el-descriptions-item label="预期证据" :span="2">
-            {{ (task.acceptance_evidence || []).join('；') || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="服务条目" :span="2">
-            <span v-if="!(task.serves_item_ids || []).length">—</span>
-            <el-tag
-              v-for="id in task.serves_item_ids"
-              :key="id"
-              size="small"
-              class="relation-tag mono"
-            >{{ id }}</el-tag>
-          </el-descriptions-item>
-        </el-descriptions>
-      </el-card>
+      <el-steps :active="stepIndex" align-center class="step-note" finish-status="success">
+        <el-step title="草稿" description="未开放" />
+        <el-step title="可认领" description="等待认领" />
+        <el-step title="已认领" description="执行中" />
+        <el-step title="待评审" description="提交后" />
+        <el-step title="已通过" description="任务完成" />
+        <el-step title="已关闭" description="流程结束" />
+      </el-steps>
 
-      <el-card shadow="never" class="card-gap">
-        <template #header>状态进度</template>
-        <el-steps :active="stepIndex" align-center finish-status="success">
-          <el-step title="draft" description="草稿" />
-          <el-step title="open" description="可认领" />
-          <el-step title="claimed" description="已认领" />
-          <el-step title="submitted" description="待评审" />
-          <el-step title="accepted" description="已通过" />
-        </el-steps>
-        <el-alert
-          v-if="task.status === 'rework'"
-          class="step-note"
-          type="warning"
-          title="任务已被打回（rework）：请修改后重新提交，认领可再次进行。"
-          :closable="false"
-          show-icon
-        />
-        <el-alert
-          v-else-if="task.status === 'cancelled'"
-          class="step-note"
-          type="info"
-          title="任务已取消。"
-          :closable="false"
-          show-icon
-        />
-      </el-card>
-
-      <el-card shadow="never" class="card-gap">
-        <template #header>操作</template>
-        <div class="toolbar">
-          <el-input
-            v-model="workerId"
-            placeholder="工作者 ID"
-            style="width: 200px"
-            :disabled="claimSubmitting || releaseSubmitting"
-          />
-          <el-tooltip
-            :disabled="canClaim"
-            :content="`仅 open 或 rework 状态可认领；当前为 ${task.status}`"
-            placement="top"
-          >
-            <span>
-              <el-button
-                type="primary"
-                :loading="claimSubmitting"
-                :disabled="!canClaim"
-                @click="claim"
-              >
-                认领
-              </el-button>
-            </span>
-          </el-tooltip>
-          <el-tooltip
-            :disabled="canRelease"
-            content="当前没有活跃认领可释放"
-            placement="top"
-          >
-            <span>
-              <el-button
-                :loading="releaseSubmitting"
-                :disabled="!canRelease"
-                @click="release"
-              >
-                释放
-              </el-button>
-            </span>
-          </el-tooltip>
-          <el-tooltip
-            :disabled="canSubmit"
-            content="仅已认领（claimed）且存在活跃认领时可提交成果"
-            placement="top"
-          >
-            <span>
-              <el-button type="primary" plain :disabled="!canSubmit" @click="openSubmit">
-                提交成果
-              </el-button>
-            </span>
-          </el-tooltip>
-          <el-tooltip
-            :disabled="canReview"
-            content="该任务还没有提交，无法评审"
-            placement="top"
-          >
-            <span>
-              <el-button type="warning" plain :disabled="!canReview" @click="openReview">
-                评审提交
-              </el-button>
-            </span>
-          </el-tooltip>
-        </div>
-        <div v-if="activeClaim" class="muted">
-          当前活跃认领：<span class="mono">{{ activeClaim.claim_id }}</span>
-          　工作者：{{ activeClaim.worker_id }}
-        </div>
-      </el-card>
-
-      <el-row :gutter="16">
+      <el-row :gutter="16" style="margin-top: 8px">
         <el-col :xs="24" :lg="14">
-          <el-card shadow="never" class="card-gap">
-            <template #header>提交与评审</template>
-            <EmptyState v-if="submissions.length === 0" description="该任务还没有提交" :height="'120px'" />
-            <div v-for="submission in submissions" :key="submission.submission_id" class="submission">
-              <div class="record-head">
-                <strong class="mono">{{ submission.submission_id }}</strong>
-                <span class="muted">{{ formatTime(submission.submitted_at) }}</span>
-              </div>
-              <div>摘要：{{ submission.summary }}</div>
-              <div class="muted">提交人：{{ submission.submitted_by }}　自测：{{ submission.self_test || '—' }}</div>
-              <div class="muted">
-                commit：
-                <el-tag
-                  v-for="(ref, index) in submission.commit_refs"
-                  :key="index"
-                  size="small"
-                  class="relation-tag mono"
-                >{{ typeof ref === 'string' ? ref : `${ref.repo}@${ref.hash}` }}</el-tag>
-              </div>
-              <div v-if="(submission.known_gaps || []).length" class="muted">
-                已知缺口：{{ submission.known_gaps.join('；') }}
-              </div>
-              <div
-                v-for="review in reviewsMap[submission.submission_id] || []"
-                :key="review.review_id"
-                class="review"
-              >
-                <div>
-                  <StatusTag group="review" :value="review.conclusion" />
-                  <span class="muted">　评审人：{{ review.reviewer_id }}
-                    <span v-if="review.self_review">（自审）</span>
-                    　{{ formatTime(review.reviewed_at) }}</span>
-                </div>
-                <div v-if="(review.criterion_results || []).length" class="muted">
-                  <div v-for="(item, index) in review.criterion_results" :key="index">
-                    · {{ item.criterion }} = {{ item.result }}
-                    <span v-if="item.evidence">（{{ item.evidence }}）</span>
-                  </div>
-                </div>
-                <div v-if="review.reason" class="muted">理由：{{ review.reason }}</div>
-              </div>
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">任务说明</span>
+              <StatusTag group="task" :value="task.status" size="small" />
             </div>
-          </el-card>
+            <div class="desc-grid">
+              <span class="desc-label">目标</span>
+              <span>{{ task.purpose }}</span>
+              <span class="desc-label">范围</span>
+              <span>{{ task.scope || '—' }}</span>
+              <span class="desc-label">非目标</span>
+              <span>{{ task.non_scope || '—' }}</span>
+              <span class="desc-label">服务主干</span>
+              <span v-if="(task.serves_item_ids || []).length">
+                <el-tag v-for="id in task.serves_item_ids" :key="id" size="small" class="mono">
+                  {{ id }}
+                </el-tag>
+              </span>
+              <span v-else>探索任务（无主干关联）</span>
+            </div>
+            <div class="done-block">
+              <div class="done-block__title">完成条件（评审逐条对照）</div>
+              <ul class="done-list">
+                <li v-for="(done, i) in task.done_when || []" :key="i">{{ done }}</li>
+              </ul>
+            </div>
+          </div>
 
-          <el-card shadow="never" class="card-gap">
-            <template #header>认领记录</template>
-            <EmptyState v-if="claims.length === 0" description="还没有认领记录" :height="'120px'" />
-            <el-table v-else :data="claims" size="small">
-              <el-table-column prop="claim_id" label="认领" min-width="160">
-                <template #default="{ row }"><span class="mono">{{ row.claim_id }}</span></template>
-              </el-table-column>
-              <el-table-column prop="worker_id" label="工作者" width="120" />
-              <el-table-column label="状态" width="110">
-                <template #default="{ row }"><StatusTag group="claim" :value="row.status" /></template>
-              </el-table-column>
-              <el-table-column label="认领时间" width="150">
-                <template #default="{ row }">{{ formatTime(row.claimed_at) }}</template>
-              </el-table-column>
-              <el-table-column label="释放时间" width="150">
-                <template #default="{ row }">{{ formatTime(row.released_at) }}</template>
-              </el-table-column>
-            </el-table>
-          </el-card>
-        </el-col>
-
-        <el-col :xs="24" :lg="10">
-          <el-card shadow="never" class="card-gap">
-            <template #header>时间线</template>
-            <EmptyState v-if="timelineEvents.length === 0" description="暂无事件" :height="'120px'" />
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">交付链</span>
+              <span class="panel__count">{{ deliveryChain.length }}</span>
+            </div>
+            <EmptyState v-if="deliveryChain.length === 0" description="还没有认领或提交" :height="'80px'" />
             <el-timeline v-else>
               <el-timeline-item
-                v-for="event in timelineEvents"
+                v-for="event in deliveryChain"
                 :key="event.key"
                 :timestamp="formatTime(event.time)"
                 placement="top"
               >
-                <div><strong>{{ event.title }}</strong></div>
+                <div class="event-head">
+                  <StatusTag :group="event.tag.group" :value="event.tag.value" size="small" />
+                  <strong>{{ event.title }}</strong>
+                </div>
                 <div class="muted">{{ event.detail }}</div>
               </el-timeline-item>
             </el-timeline>
-          </el-card>
+          </div>
+
+          <div
+            v-for="submission in submissions"
+            :key="submission.submission_id"
+            class="panel"
+          >
+            <div class="panel__head">
+              <span class="panel__title">提交版本</span>
+              <span class="mono muted">{{ submission.submission_id }}</span>
+            </div>
+            <div class="desc-grid">
+              <span class="desc-label">摘要</span>
+              <span>{{ submission.summary }}</span>
+              <span class="desc-label">提交人</span>
+              <span>{{ submission.submitted_by }}</span>
+              <span class="desc-label">自测</span>
+              <span>{{ submission.self_test || '—' }}</span>
+              <span class="desc-label">已知缺口</span>
+              <span v-if="(submission.known_gaps || []).length">{{ submission.known_gaps.join('；') }}</span>
+              <span v-else>—</span>
+              <span class="desc-label">commit</span>
+              <span>
+                <el-tag
+                  v-for="(ref, i) in submission.commit_refs || []"
+                  :key="i"
+                  size="small"
+                  class="mono"
+                  style="margin-right: 6px"
+                >
+                  {{ ref.repo }}@{{ ref.hash }}
+                </el-tag>
+              </span>
+            </div>
+
+            <div v-if="(reviewsMap[submission.submission_id] || []).length" class="review-block">
+              <div class="done-block__title">评审结果</div>
+              <div
+                v-for="review in reviewsMap[submission.submission_id]"
+                :key="review.review_id"
+                class="queue-item"
+              >
+                <div class="queue-item__meta">
+                  <StatusTag group="review" :value="review.conclusion" size="small" />
+                  <span class="muted">{{ review.reviewer_id }}</span>
+                  <span v-if="review.self_review" class="muted">自审</span>
+                </div>
+                <ul class="done-list">
+                  <li v-for="(item, i) in review.criterion_results || []" :key="i">
+                    {{ item.criterion }} → {{ item.result }}
+                    <span v-if="item.evidence" class="muted">（{{ item.evidence }}）</span>
+                  </li>
+                </ul>
+                <div v-if="review.reason" class="muted">理由：{{ review.reason }}</div>
+              </div>
+            </div>
+          </div>
+        </el-col>
+
+        <el-col :xs="24" :lg="10">
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">操作区</span>
+              <span v-if="activeClaim" class="muted">
+                当前认领：{{ activeClaim.worker_id }}
+              </span>
+            </div>
+            <el-input
+              v-model="workerId"
+              placeholder="工作者 ID"
+              style="margin-bottom: 10px"
+              @change="saveWorker"
+            />
+            <div class="suggestion-actions">
+              <el-tooltip :disabled="!claimHint" :content="claimHint" placement="top">
+                <span>
+                  <el-button type="primary" :disabled="!canClaim || !workerId.trim()" :loading="claimSubmitting" @click="claim">
+                    认领
+                  </el-button>
+                </span>
+              </el-tooltip>
+              <el-tooltip :disabled="canRelease" content="没有生效中的认领" placement="top">
+                <span>
+                  <el-button :disabled="!canRelease" :loading="releaseSubmitting" @click="release">
+                    释放
+                  </el-button>
+                </span>
+              </el-tooltip>
+              <el-tooltip
+                :disabled="canSubmit"
+                :content="canSubmit ? '' : '任务需处于已认领且存在生效认领才能提交'"
+                placement="top"
+              >
+                <span>
+                  <el-button type="primary" plain :disabled="!canSubmit" @click="openSubmit">
+                    提交成果
+                  </el-button>
+                </span>
+              </el-tooltip>
+              <el-tooltip :disabled="canReview" content="还没有可评审的提交" placement="top">
+                <span>
+                  <el-button :disabled="!canReview" @click="openReview">评审</el-button>
+                </span>
+              </el-tooltip>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">认领历史</span>
+            </div>
+            <EmptyState v-if="claims.length === 0" description="还没有认领记录" :height="'60px'" />
+            <div v-for="claim in claims" :key="claim.claim_id" class="queue-item">
+              <div class="queue-item__meta">
+                <StatusTag group="claim" :value="claim.status" size="small" />
+                <span>{{ claim.worker_id }}</span>
+                <span class="muted">{{ formatTime(claim.claimed_at) }}</span>
+              </div>
+            </div>
+          </div>
         </el-col>
       </el-row>
     </template>
 
-    <el-dialog v-model="submitVisible" title="登记成果提交" width="560px">
+    <el-dialog v-model="submitVisible" title="提交成果" width="600px">
       <el-form :model="submitForm" :rules="submitRules" label-width="96px">
         <el-form-item label="commit 引用" prop="commit_refs">
           <el-input
             v-model="submitForm.commit_refs"
             type="textarea"
             :rows="3"
-            placeholder="每行一个：repo@hash"
+            placeholder="每行 repo@hash，例如 sap-center@a1b2c3d"
           />
         </el-form-item>
         <el-form-item label="摘要" prop="summary">
           <el-input v-model="submitForm.summary" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="自测">
-          <el-input v-model="submitForm.self_test" placeholder="可选，例如 npm test 通过" />
+          <el-input v-model="submitForm.self_test" type="textarea" :rows="2" placeholder="命令与结果" />
         </el-form-item>
         <el-form-item label="已知缺口">
           <el-input v-model="submitForm.known_gaps" type="textarea" :rows="2" placeholder="每行一条" />
@@ -531,54 +502,40 @@ onMounted(() => {
     </el-dialog>
 
     <el-dialog v-model="reviewVisible" title="评审提交" width="640px">
-      <el-form :model="reviewForm" :rules="reviewRules" label-width="96px">
-        <el-form-item label="提交" prop="submission_id">
+      <el-form label-width="96px">
+        <el-form-item label="评审提交">
           <el-select v-model="reviewForm.submission_id" style="width: 100%">
             <el-option
               v-for="submission in submissions"
               :key="submission.submission_id"
-              :label="`${submission.submission_id}（${formatTime(submission.submitted_at)}）`"
+              :label="`${submission.submission_id}｜${submission.summary}`"
               :value="submission.submission_id"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="评审人" prop="reviewer_id">
+        <el-form-item label="评审人">
           <el-input v-model="reviewForm.reviewer_id" />
         </el-form-item>
-        <el-form-item label="结论" prop="conclusion">
-          <el-select v-model="reviewForm.conclusion" style="width: 220px">
-            <el-option
-              v-for="value in OPTIONS.reviewConclusions"
-              :key="value"
-              :label="value"
-              :value="value"
-            />
+        <el-form-item label="结论">
+          <el-select v-model="reviewForm.conclusion">
+            <el-option value="confirm" label="confirm（通过）" />
+            <el-option value="reject" label="reject（打回，需理由）" />
+            <el-option value="needs_info" label="needs_info（待补充）" />
           </el-select>
         </el-form-item>
-        <el-form-item label="完成条件">
-          <div class="criteria">
-            <div v-for="(item, index) in reviewForm.criteria" :key="index" class="criteria-row">
-              <el-input v-model="item.criterion" placeholder="完成条件" style="width: 200px" />
-              <el-input v-model="item.result" placeholder="结果 pass/fail" style="width: 150px" />
-              <el-input v-model="item.evidence" placeholder="证据（可选）" style="width: 180px" />
-              <el-button
-                size="small"
-                text
-                type="danger"
-                :disabled="reviewForm.criteria.length <= 1"
-                @click="removeCriterion(index)"
-              >
-                删除
-              </el-button>
-            </div>
-            <el-button size="small" text type="primary" @click="addCriterion">
-              <el-icon><Plus /></el-icon>
-              添加条件
-            </el-button>
+        <el-form-item label="完成条件结果">
+          <div v-for="(item, index) in reviewForm.criteria" :key="index" style="display: flex; gap: 6px; margin-bottom: 6px">
+            <el-input v-model="item.criterion" placeholder="条件" />
+            <el-input v-model="item.result" placeholder="结果" />
+            <el-input v-model="item.evidence" placeholder="证据" style="width: 160px" />
+            <el-button text type="danger" @click="reviewForm.criteria.splice(index, 1)">删除</el-button>
           </div>
+          <el-button size="small" text @click="reviewForm.criteria.push({ criterion: '', result: '', evidence: '' })">
+            + 增加条件
+          </el-button>
         </el-form-item>
         <el-form-item label="理由">
-          <el-input v-model="reviewForm.reason" type="textarea" :rows="2" placeholder="结论为 reject 时必填" />
+          <el-input v-model="reviewForm.reason" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -590,37 +547,29 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.relation-tag {
-  margin-right: 6px;
+.done-block {
+  margin-top: 10px;
+  background: var(--sap-bg-soft);
+  border-radius: 6px;
+  padding: 8px 10px;
 }
 
-.submission {
-  border-top: 1px solid #f0f2f5;
-  padding: 10px 0;
-}
-
-.record-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.done-block__title {
+  font-size: 12px;
+  color: var(--sap-muted);
   margin-bottom: 4px;
 }
 
-.review {
-  background: #fafafa;
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-top: 8px;
+.done-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--sap-text-secondary);
 }
 
-.criteria {
-  width: 100%;
-}
-
-.criteria-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
+.review-block {
+  margin-top: 10px;
+  border-top: 1px dashed var(--sap-border-soft);
+  padding-top: 10px;
 }
 </style>

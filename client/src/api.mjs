@@ -3,6 +3,9 @@
 
 import { DEFAULT_CENTER_URL } from './help.mjs';
 
+/** 接口统一前缀（见 docs/08 §1）；CENTER_URL 只表示 origin。 */
+export const API_PREFIX = '/sap-cloud/api';
+
 /** 解析 Center 地址；CENTER_URL 可覆盖，默认 http://127.0.0.1:8787。 */
 export function resolveCenterUrl(env = process.env) {
   const raw = env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -40,7 +43,7 @@ export async function apiRequest(method, path, body, options = {}) {
 
   let response;
   try {
-    response = await fetchImpl(`${base}${path}`, init);
+    response = await fetchImpl(`${base}${API_PREFIX}${path}`, init);
   } catch (err) {
     throw new Error(`无法连接 Center（${base}）：${err.message}`);
   }

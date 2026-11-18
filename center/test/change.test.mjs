@@ -1,4 +1,4 @@
-// Center 主干变更与影响处置测试（T5）。
+﻿// Center 主干变更与影响处置测试（T5）。
 // 运行：node --test center/test/
 // 测试数据库使用系统临时目录，结束后删除。
 
@@ -423,7 +423,7 @@ test('HTTP：变更与影响项路由、状态码与错误 code', async () => {
   const project = seed();
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   try {
     const badCreate = await fetch(`${base}/trunk-changes`, {

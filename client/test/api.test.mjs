@@ -1,4 +1,4 @@
-// Client API 测试（T2）：用 node:http 起一个内存假 Center，
+﻿// Client API 测试（T2）：用 node:http 起一个内存假 Center，
 // 验证请求路径、方法、请求体、JSON 解析与错误处理。
 
 import test from 'node:test';
@@ -21,6 +21,8 @@ function startFakeCenter() {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url, 'http://127.0.0.1');
+      // 假 Center 按剥掉 /sap-cloud/api 前缀后的路径匹配。
+      const path = url.pathname.replace(/^\/sap-cloud\/api/, '');
       const raw = Buffer.concat(chunks).toString('utf8');
       let body = {};
       if (raw) {
@@ -38,10 +40,10 @@ function startFakeCenter() {
         res.end(data);
       };
 
-      if (req.method === 'GET' && url.pathname === '/healthz') {
+      if (req.method === 'GET' && path === '/healthz') {
         return send(200, { ok: true });
       }
-      if (req.method === 'POST' && url.pathname === '/projects') {
+      if (req.method === 'POST' && path === '/projects') {
         if (!body.name) return send(400, { error: '缺少必填字段：name' });
         const project = {
           project_id: 'prj_fake',
@@ -51,7 +53,7 @@ function startFakeCenter() {
         state.projects.set(project.project_id, project);
         return send(201, project);
       }
-      if (req.method === 'POST' && url.pathname === '/requirements') {
+      if (req.method === 'POST' && path === '/requirements') {
         if (!body.project_id) return send(400, { error: '缺少必填字段：project_id' });
         if (!body.raw_text) return send(400, { error: '缺少必填字段：raw_text' });
         const requirement = {
@@ -65,7 +67,7 @@ function startFakeCenter() {
         return send(201, requirement);
       }
 
-      let matched = url.pathname.match(/^\/requirements\/([^/]+)\/decision$/);
+      let matched = path.match(/^\/requirements\/([^/]+)\/decision$/);
       if (req.method === 'POST' && matched) {
         if (!body.confirmed_by) return send(400, { error: '缺少必填字段：confirmed_by' });
         if (!body.conclusion) return send(400, { error: '缺少必填字段：conclusion' });
@@ -86,7 +88,7 @@ function startFakeCenter() {
         return send(201, decision);
       }
 
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/timeline$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/timeline$/);
       if (req.method === 'GET' && matched) {
         return send(200, [
           {
@@ -99,15 +101,15 @@ function startFakeCenter() {
         ]);
       }
 
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/assessments$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/assessments$/);
       if (req.method === 'GET' && matched) return send(200, []);
 
-      matched = url.pathname.match(/^\/requirements\/([^/]+)\/decisions$/);
+      matched = path.match(/^\/requirements\/([^/]+)\/decisions$/);
       if (req.method === 'GET' && matched) {
         return send(200, state.decisions.filter((d) => d.requirement_id === matched[1]));
       }
 
-      matched = url.pathname.match(/^\/requirements\/([^/]+)$/);
+      matched = path.match(/^\/requirements\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const requirement = state.requirements.get(matched[1]);
         if (!requirement) return send(404, { error: `需求不存在：${matched[1]}` });
@@ -170,11 +172,11 @@ test('api：请求路径、方法、请求体与 JSON 解析', async () => {
     assert.deepEqual(
       fake.state.requests.map((r) => `${r.method} ${r.path}`),
       [
-        'GET /healthz',
-        'POST /projects',
-        'POST /requirements',
-        'POST /requirements/req_fake/decision',
-        'GET /requirements/req_fake/timeline',
+        'GET /sap-cloud/api/healthz',
+        'POST /sap-cloud/api/projects',
+        'POST /sap-cloud/api/requirements',
+        'POST /sap-cloud/api/requirements/req_fake/decision',
+        'GET /sap-cloud/api/requirements/req_fake/timeline',
       ],
     );
     assert.equal(fake.state.requests[2].body.raw_text, '希望支持导出');

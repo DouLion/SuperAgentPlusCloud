@@ -23,6 +23,8 @@ function startFakeCenter() {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url, 'http://127.0.0.1');
+      // 假 Center 按剥掉 /sap-cloud/api 前缀后的路径匹配。
+      const path = url.pathname.replace(/^\/sap-cloud\/api/, '');
       const raw = Buffer.concat(chunks).toString('utf8');
       let body = {};
       if (raw) {
@@ -40,7 +42,7 @@ function startFakeCenter() {
         res.end(data);
       };
 
-      let matched = url.pathname.match(/^\/trunk-items$/);
+      let matched = path.match(/^\/trunk-items$/);
       if (req.method === 'GET' && matched) {
         const items = [...state.items.values()].filter((item) => {
           if (url.searchParams.get('project_id')
@@ -79,14 +81,14 @@ function startFakeCenter() {
         return send(201, item);
       }
 
-      matched = url.pathname.match(/^\/trunk-items\/([^/]+)$/);
+      matched = path.match(/^\/trunk-items\/([^/]+)$/);
       if (req.method === 'GET' && matched) {
         const item = state.items.get(matched[1]);
         if (!item) return send(404, { ok: false, error: `主干条目不存在：${matched[1]}` });
         return send(200, item);
       }
 
-      matched = url.pathname.match(/^\/trunk-items\/([^/]+)\/confirm$/);
+      matched = path.match(/^\/trunk-items\/([^/]+)\/confirm$/);
       if (req.method === 'POST' && matched) {
         const item = state.items.get(matched[1]);
         if (!item) return send(404, { ok: false, error: `主干条目不存在：${matched[1]}` });
@@ -105,7 +107,7 @@ function startFakeCenter() {
         return send(200, item);
       }
 
-      matched = url.pathname.match(/^\/trunk-items\/([^/]+)\/retire$/);
+      matched = path.match(/^\/trunk-items\/([^/]+)\/retire$/);
       if (req.method === 'POST' && matched) {
         const item = state.items.get(matched[1]);
         if (!item) return send(404, { ok: false, error: `主干条目不存在：${matched[1]}` });
@@ -123,7 +125,7 @@ function startFakeCenter() {
         return send(200, item);
       }
 
-      matched = url.pathname.match(/^\/trunk-changes$/);
+      matched = path.match(/^\/trunk-changes$/);
       if (req.method === 'GET' && matched) return send(200, []);
 
       return send(404, { ok: false, error: 'not_found' });
@@ -178,7 +180,7 @@ test('命令：trunk propose 组装请求体并输出 proposed 提示', async ()
 
     const request = fake.state.requests[fake.state.requests.length - 1];
     assert.equal(request.method, 'POST');
-    assert.equal(request.path, '/trunk-items');
+    assert.equal(request.path, '/sap-cloud/api/trunk-items');
     assert.equal(request.body.project_id, 'prj_x');
     assert.equal(request.body.kind, 'scope');
     assert.equal(request.body.statement, '只覆盖单项目');
@@ -231,7 +233,7 @@ test('命令：trunk confirm / retire 请求体与输出', async () => {
     ], io), 0);
     assert.ok(lines.some((line) => line.includes('主干条目已确认')));
     let request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, `/trunk-items/${created.item_id}/confirm`);
+    assert.equal(request.path, `/sap-cloud/api/trunk-items/${created.item_id}/confirm`);
     assert.deepEqual(request.body, {
       confirmed_by: '李四',
       valid_from: '2026-11-19T00:00:00.000Z',
@@ -242,7 +244,7 @@ test('命令：trunk confirm / retire 请求体与输出', async () => {
     ], io), 0);
     assert.ok(lines.some((line) => line.includes('主干条目已退役')));
     request = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(request.path, `/trunk-items/${created.item_id}/retire`);
+    assert.equal(request.path, `/sap-cloud/api/trunk-items/${created.item_id}/retire`);
     assert.deepEqual(request.body, { confirmed_by: '李四' });
   } finally {
     delete process.env.CENTER_URL;
@@ -333,7 +335,7 @@ test('命令：trunk list 过滤条件与 show 打印条目、关系、来源、
     assert.ok(lines.some((line) => line.includes('item_active')));
     assert.ok(lines.some((line) => line.includes('item_new')));
     const listRequest = fake.state.requests[fake.state.requests.length - 1];
-    assert.equal(listRequest.path, '/trunk-items?project_id=prj_x&status=active&kind=scope');
+    assert.equal(listRequest.path, '/sap-cloud/api/trunk-items?project_id=prj_x&status=active&kind=scope');
 
     lines.length = 0;
     assert.equal(await runTrunk(['show', '--item', active.item_id], io), 0);

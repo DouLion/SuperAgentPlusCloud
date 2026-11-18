@@ -1,7 +1,8 @@
-// 前端统一 HTTP 封装：BASE 取 VITE_CENTER_URL（dev 用代理时为空串）。
+// 前端统一 HTTP 封装：BASE 只表示 origin（VITE_CENTER_URL），接口统一加 /sap-cloud/api 前缀。
 // 非 2xx 抛出带服务端 error/code 的错误；网络失败抛「结果待核对，请重试」。
 
 const BASE = (import.meta.env.VITE_CENTER_URL || '').replace(/\/+$/, '');
+const API_PREFIX = '/sap-cloud/api';
 
 /** 把查询对象编码为 querystring；空值忽略。 */
 function queryString(query) {
@@ -24,7 +25,7 @@ async function request(method, path, body) {
 
   let response;
   try {
-    response = await fetch(`${BASE}${path}`, init);
+    response = await fetch(`${BASE}${API_PREFIX}${path}`, init);
   } catch (err) {
     const error = new Error(`无法连接 Center，结果待核对，请重试（${err.message}）`);
     error.code = 'NETWORK_ERROR';

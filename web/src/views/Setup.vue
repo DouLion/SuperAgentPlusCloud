@@ -77,7 +77,7 @@ async function finish() {
     });
     ElMessage.success('初始化完成');
     await refreshAiHealth();
-    router.replace('/projects');
+    router.replace({ name: 'projects' });
   } catch (err) {
     ElMessage.error(errorMessage(err, '初始化失败'));
   } finally {

@@ -1,4 +1,4 @@
-// Center 提交与评审测试（T4）。
+﻿// Center 提交与评审测试（T4）。
 // 运行：node --test center/test/
 // 测试数据库使用系统临时目录，结束后删除。
 
@@ -491,7 +491,7 @@ test('事件：提交与各评审结论都写入事件', () => {
 test('HTTP：提交与评审路由、状态码与错误映射', async () => {
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   try {
     const { project, item } = seed();
@@ -611,7 +611,7 @@ test('HTTP：提交与评审路由、状态码与错误映射', async () => {
 test('HTTP：rework 后可通过 HTTP 重新认领并再次提交', async () => {
   const server = createServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
 
   try {
     const { project, item } = seed();

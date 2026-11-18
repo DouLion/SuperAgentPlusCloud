@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from './api.js';
 import { appState, refreshAiHealth } from './appState.js';
+import { projectNavGroups, go } from './nav.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -12,19 +13,42 @@ const projects = ref([]);
 const selectedProjectId = ref(localStorage.getItem('sap.projectId') || '');
 const ai = appState.ai;
 const aiLoading = ref(false);
-const setupInitialized = ref(true);
+const collapsed = ref(false);
 
-async function loadSetupStatus() {
-  try {
-    const status = await api.setupStatus();
-    setupInitialized.value = status.initialized;
-    // 未初始化时进入设置向导（根路径会经redirect 落到这里）。
-    if (!status.initialized && route.path !== '/setup') {
-      router.replace('/setup');
-    }
-  } catch {
-    // 状态接口不可用时保持现状，不打断面板使用。
+const pageTitle = computed(() => route.meta.title || 'SuperAgentPlus');
+const currentProject = computed(
+  () => projects.value.find((project) => project.project_id === selectedProjectId.value) || null,
+);
+const aiText = computed(() => (ai.configured ? `AI 已配置：${ai.model}` : 'AI 未配置'));
+
+const navGroups = computed(() => {
+  const id = selectedProjectId.value;
+  if (!id) return [];
+  return projectNavGroups(id);
+});
+
+/** 当前项目下哪个分组被点亮。 */
+const activeMenu = computed(() => {
+  const { path } = route;
+  if (path === '/projects') return 'projects';
+  if (path === '/settings') return 'settings';
+  if (path === '/setup') return 'setup';
+  if (path.startsWith('/project/')) {
+    // /project/:id/<section>；overview 对应命名路由 dashboard。
+    const section = path.split('/')[3] || 'overview';
+    const name = section === 'overview' ? 'dashboard' : section;
+    return `${name}:${route.params.id}`;
   }
+  return '';
+});
+
+function onMenuSelect(index) {
+  if (index === 'projects' || index === 'settings') {
+    router.push({ name: index });
+    return;
+  }
+  const [name, id] = String(index).split(':');
+  if (name && id) go(router, name, { id });
 }
 
 async function loadProjects() {
@@ -44,93 +68,106 @@ async function reloadAiHealth() {
   }
 }
 
+async function loadSetupStatus() {
+  try {
+    const status = await api.setupStatus();
+    if (!status.initialized && route.name !== 'setup') {
+      router.replace({ name: 'setup' });
+    }
+  } catch {
+    // 状态接口不可用时不打断面板。
+  }
+}
+
 onMounted(() => {
   loadProjects();
   reloadAiHealth();
   loadSetupStatus();
 });
 
-// 跨页面跳转后也刷新一次，避免某个页面修改了配置而别处仍显示旧值。
 router.afterEach(() => {
   reloadAiHealth();
 });
 
-const currentProject = computed(
-  () => projects.value.find((project) => project.project_id === selectedProjectId.value) || null,
+watch(
+  () => route.params.id,
+  (id) => {
+    if (!id) return;
+    selectedProjectId.value = String(id);
+    localStorage.setItem('sap.projectId', String(id));
+  },
+  { immediate: true },
 );
 
-const projectItems = computed(() => {
-  const id = selectedProjectId.value;
-  if (!id) return [];
-  return [
-    { index: `/project/${id}`, title: '项目驾驶舱', icon: 'Odometer' },
-    { index: `/trunk/${id}`, title: '主干条目', icon: 'Share' },
-    { index: `/requirements?project=${id}`, title: '需求队列', icon: 'Document' },
-    { index: `/tasks?project=${id}`, title: '任务看板', icon: 'List' },
-    { index: `/changes/${id}`, title: '变更与影响', icon: 'RefreshRight' },
-    { index: `/timeline/${id}`, title: '事件时间线', icon: 'Clock' },
-  ];
-});
-
-const activeMenu = computed(() => {
-  const { path } = route;
-  if (path === '/projects') return '/projects';
-  if (path.startsWith('/project/')) return `/project/${route.params.id}`;
-  if (path.startsWith('/trunk/')) return `/trunk/${route.params.projectId}`;
-  if (path.startsWith('/changes/')) return `/changes/${route.params.projectId}`;
-  if (path.startsWith('/timeline/')) return `/timeline/${route.params.projectId}`;
-  if (path.startsWith('/requirements')) return '/requirements';
-  if (path.startsWith('/tasks')) return '/tasks';
-  if (path === '/settings') return '/settings';
-  return '/projects';
-});
-
-function onSelect(index) {
-  if (index) router.push(index);
-}
-
 function onProjectChange(id) {
-  selectedProjectId.value = id;
+  selectedProjectId.value = id || '';
   if (id) localStorage.setItem('sap.projectId', id);
   else localStorage.removeItem('sap.projectId');
+}
+
+function enterProject(id) {
+  go(router, 'dashboard', { id });
 }
 </script>
 
 <template>
   <el-container class="app-shell">
-    <el-aside width="224px" class="app-aside">
+    <el-aside :width="collapsed ? '64px' : '232px'" class="app-aside">
       <div class="brand">
         <span class="brand-name">SuperAgentPlus</span>
-        <span class="brand-sub">中心面板</span>
+        <span v-if="!collapsed" class="brand-sub">项目工作台</span>
       </div>
-      <el-menu :default-active="activeMenu" class="app-menu" @select="onSelect">
-        <el-menu-item index="/projects">
+
+      <el-menu
+        :default-active="activeMenu"
+        :collapse="collapsed"
+        :collapse-transition="false"
+        class="app-menu"
+        @select="onMenuSelect"
+      >
+        <el-menu-item index="projects">
           <el-icon><FolderOpened /></el-icon>
-          <span>项目列表</span>
+          <template #title>项目列表</template>
         </el-menu-item>
-        <el-menu-item index="/settings">
+
+        <template v-for="group in navGroups" :key="group.title">
+          <el-menu-item-group :title="collapsed ? '' : group.title">
+            <el-menu-item
+              v-for="item in group.items"
+              :key="item.name"
+              :index="`${item.name}:${item.id}`"
+            >
+              <el-icon><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.title }}</template>
+            </el-menu-item>
+          </el-menu-item-group>
+        </template>
+
+        <el-menu-item index="settings">
           <el-icon><Setting /></el-icon>
-          <span>设置</span>
-        </el-menu-item>
-        <el-menu-item
-          v-for="item in projectItems"
-          :key="item.index"
-          :index="item.index"
-        >
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.title }}</span>
+          <template #title>设置</template>
         </el-menu-item>
       </el-menu>
+
+      <div class="aside-foot">
+        <el-button text size="small" @click="collapsed = !collapsed">
+          <el-icon><component :is="collapsed ? 'Expand' : 'Fold'" /></el-icon>
+          <span v-if="!collapsed">收起</span>
+        </el-button>
+      </div>
     </el-aside>
 
     <el-container>
       <el-header class="app-header" height="56px">
         <div class="header-left">
-          <span class="header-title">{{ route.meta.title || 'SuperAgentPlus' }}</span>
-          <span v-if="currentProject" class="muted">
-            当前项目：{{ currentProject.name }}
-          </span>
+          <el-breadcrumb separator="/">
+            <el-breadcrumb-item v-if="currentProject" :to="{ name: 'projects' }">
+              {{ currentProject.name }}
+            </el-breadcrumb-item>
+            <el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
+          </el-breadcrumb>
         </div>
+
         <div class="header-right">
           <el-select
             v-model="selectedProjectId"
@@ -148,13 +185,16 @@ function onProjectChange(id) {
               :value="project.project_id"
             />
           </el-select>
+
+          <el-button size="small" @click="enterProject(selectedProjectId)">进入项目</el-button>
+
           <el-tag
             v-loading="aiLoading"
             :type="ai.configured ? 'success' : 'info'"
             effect="light"
             size="small"
           >
-            {{ ai.configured ? `AI 已配置：${ai.model}` : 'AI 未配置' }}
+            {{ aiText }}
           </el-tag>
           <el-button size="small" text @click="reloadAiHealth">
             <el-icon><Refresh /></el-icon>
@@ -176,8 +216,11 @@ function onProjectChange(id) {
 
 .app-aside {
   background: #fff;
-  border-right: 1px solid #e4e7ed;
+  border-right: 1px solid var(--sap-border);
   overflow-y: auto;
+  transition: width 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .brand {
@@ -186,7 +229,8 @@ function onProjectChange(id) {
   flex-direction: column;
   justify-content: center;
   padding: 0 16px;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid var(--sap-border-soft);
+  flex-shrink: 0;
 }
 
 .brand-name {
@@ -196,11 +240,24 @@ function onProjectChange(id) {
 
 .brand-sub {
   font-size: 12px;
-  color: #909399;
+  color: var(--sap-muted);
 }
 
 .app-menu {
   border-right: none;
+  flex: 1;
+}
+
+.app-menu :deep(.el-menu-item-group__title) {
+  font-size: 12px;
+  color: var(--sap-muted);
+  padding-left: 20px;
+}
+
+.aside-foot {
+  border-top: 1px solid var(--sap-border-soft);
+  padding: 6px 8px;
+  flex-shrink: 0;
 }
 
 .app-header {
@@ -208,30 +265,22 @@ function onProjectChange(id) {
   align-items: center;
   justify-content: space-between;
   background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--sap-border);
   padding: 0 16px;
-}
-
-.header-left {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.header-title {
-  font-size: 16px;
-  font-weight: 600;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .app-main {
   padding: 0;
   overflow-y: auto;
-  background: #f5f7fa;
+  background: var(--sap-bg);
 }
 </style>

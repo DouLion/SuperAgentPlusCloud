@@ -1,28 +1,57 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
 import { formatTime, STATUS_MAPS } from '../status.js';
 import EmptyState from '../components/EmptyState.vue';
+import { go } from '../nav.js';
 
 const route = useRoute();
-const projectId = route.params.projectId;
+const router = useRouter();
+const projectId = route.params.id || route.params.projectId;
 
 const loading = ref(false);
 const events = ref([]);
-const objectType = ref('');
+const category = ref('');
+const actor = ref('');
 const keyword = ref('');
 
-const objectTypeOptions = computed(() => {
-  const present = new Set(events.value.map((event) => event.object_type));
+const CATEGORIES = [
+  { key: 'decision', label: '决定' },
+  { key: 'execution', label: '执行' },
+  { key: 'delivery', label: '交付' },
+  { key: 'review', label: '评审' },
+  { key: 'trunk', label: '主干' },
+  { key: 'impact', label: '影响' },
+];
+
+function categorize(eventType) {
+  if (eventType.startsWith('decision.') || eventType.startsWith('assessment.')) return 'decision';
+  if (eventType.startsWith('requirement.')) return 'decision';
+  if (eventType.startsWith('task.') || eventType.startsWith('claim')) return 'execution';
+  if (eventType.startsWith('submission.')) return 'delivery';
+  if (eventType.startsWith('review.')) return 'review';
+  if (eventType.startsWith('trunk_')) return 'trunk';
+  if (eventType.startsWith('impact_')) return 'impact';
+  return 'execution';
+}
+
+const categoryOptions = computed(() => {
+  const present = new Set(events.value.map((event) => categorize(event.event_type)));
+  return CATEGORIES.filter((item) => present.has(item.key));
+});
+
+const actorOptions = computed(() => {
+  const present = new Set(events.value.map((event) => event.actor).filter(Boolean));
   return [...present].sort();
 });
 
-const filteredEvents = computed(() => {
+const filtered = computed(() => {
   const text = keyword.value.trim().toLowerCase();
   return events.value.filter((event) => {
-    if (objectType.value && event.object_type !== objectType.value) return false;
+    if (category.value && categorize(event.event_type) !== category.value) return false;
+    if (actor.value && event.actor !== actor.value) return false;
     if (!text) return true;
     const refs = (event.refs || []).join(' ');
     const haystack = [event.event_type, event.object_id, event.actor, event.reason, refs]
@@ -33,10 +62,12 @@ const filteredEvents = computed(() => {
   });
 });
 
+const categoryText = (key) => CATEGORIES.find((item) => item.key === key)?.label || key;
+
 async function load() {
   loading.value = true;
   try {
-    events.value = await api.listEvents({ project_id: projectId });
+    events.value = await api.listEvents({ project_id: projectId, limit: 200 });
   } catch (err) {
     ElMessage.error(errorMessage(err, '加载时间线失败'));
   } finally {
@@ -44,8 +75,20 @@ async function load() {
   }
 }
 
-function objectTypeText(value) {
-  return STATUS_MAPS.objectType[value] || value;
+/** 点击事件跳回对象详情。 */
+function jump(event) {
+  const type = event.object_type;
+  if (type === 'requirement') {
+    go(router, 'requirement-detail', { id: projectId, requirementId: event.object_id });
+    return;
+  }
+  if (type === 'task') {
+    go(router, 'task-detail', { id: projectId, taskId: event.object_id });
+    return;
+  }
+  if (type === 'trunk_item' || type === 'trunk_change' || type === 'impact_item') {
+    go(router, type === 'trunk_item' ? 'trunk' : 'changes', { id: projectId });
+  }
 }
 
 onMounted(() => {
@@ -59,7 +102,7 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2 class="page-title">事件时间线</h2>
-        <div class="page-subtitle mono">项目：{{ projectId }}</div>
+        <div class="page-subtitle">按语义过滤，而不是原始事件名；点事件可跳回对象。</div>
       </div>
       <el-button size="small" @click="load">
         <el-icon><Refresh /></el-icon>
@@ -68,58 +111,50 @@ onMounted(() => {
     </div>
 
     <div class="toolbar">
-      <el-select
-        v-model="objectType"
-        clearable
-        placeholder="对象类型"
-        style="width: 200px"
-      >
+      <el-select v-model="category" clearable placeholder="语义分类" style="width: 160px">
         <el-option
-          v-for="value in objectTypeOptions"
-          :key="value"
-          :label="objectTypeText(value)"
-          :value="value"
+          v-for="item in categoryOptions"
+          :key="item.key"
+          :label="item.label"
+          :value="item.key"
         />
+      </el-select>
+      <el-select v-model="actor" clearable filterable placeholder="操作者" style="width: 180px">
+        <el-option v-for="value in actorOptions" :key="value" :label="value" :value="value" />
       </el-select>
       <el-input
         v-model="keyword"
         clearable
-        placeholder="关键字：事件类型 / 对象 ID / 操作人 / 理由"
-        style="width: 340px"
+        placeholder="关键字：事件 / 对象 ID / 理由"
+        style="width: 320px"
       />
-      <span class="muted">共 {{ filteredEvents.length }} 条</span>
+      <span class="muted">共 {{ filtered.length }} 条</span>
     </div>
 
-    <EmptyState v-if="!loading && filteredEvents.length === 0" description="没有匹配的事件" />
+    <EmptyState v-if="!loading && filtered.length === 0" description="没有匹配的事件" :height="'160px'" />
+
     <el-card v-else shadow="never">
       <el-timeline>
         <el-timeline-item
-          v-for="event in filteredEvents"
+          v-for="event in filtered"
           :key="event.event_id"
           :timestamp="formatTime(event.occurred_at)"
           placement="top"
         >
-          <div class="event-head">
-            <el-tag size="small" effect="plain">{{ objectTypeText(event.object_type) }}</el-tag>
-            <strong>{{ event.event_type }}</strong>
-            <span v-if="event.actor" class="muted">操作人：{{ event.actor }}</span>
-          </div>
-          <div v-if="event.object_id" class="mono muted">对象：{{ event.object_id }}</div>
-          <div v-if="event.reason" class="muted">理由：{{ event.reason }}</div>
-          <div v-if="(event.refs || []).length" class="mono muted">
-            引用：{{ event.refs.join('，') }}
+          <div class="queue-item clickable" style="border: 1px solid var(--sap-border-soft)" @click="jump(event)">
+            <div class="event-head">
+              <el-tag size="small" effect="plain">{{ categoryText(categorize(event.event_type)) }}</el-tag>
+              <el-tag size="small" type="info" effect="plain">
+                {{ STATUS_MAPS.objectType[event.object_type] || event.object_type }}
+              </el-tag>
+              <strong>{{ event.event_type }}</strong>
+            </div>
+            <div class="mono muted">对象：{{ event.object_id }}</div>
+            <div v-if="event.actor" class="muted">操作人：{{ event.actor }}</div>
+            <div v-if="event.reason" class="muted">理由：{{ event.reason }}</div>
           </div>
         </el-timeline-item>
       </el-timeline>
     </el-card>
   </div>
 </template>
-
-<style scoped>
-.event-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-</style>
