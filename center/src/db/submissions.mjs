@@ -2,6 +2,7 @@
 
 import { appendEvent } from './events.mjs';
 import { REVIEW_CONCLUSIONS } from './enums.mjs';
+import { assertClaimValid, activeOwnerClaim } from './claims.mjs';
 import { getTask } from './tasks.mjs';
 import {
   decodeJson,
@@ -55,23 +56,13 @@ function normalizeCommitRefs(value) {
   return value;
 }
 
-/** 取任务当前的 active 认领；没有返回 null。 */
-function getActiveClaim(db, taskId) {
-  return (
-    db
-      .prepare(
-        `SELECT * FROM claims WHERE task_id = ? AND status = 'active'
-         ORDER BY claimed_at ASC, claim_id ASC LIMIT 1`,
-      )
-      .get(taskId) ?? null
-  );
-}
-
 /**
- * 登记任务成果提交。必填 task_id、commit_refs（非空）、summary、submitted_by；
- * 仅当前 active 认领的认领者本人可提交，否则抛 code=SUBMISSION_NOT_ALLOWED。
- * 写入后任务置为 submitted 并写事件 submission.created；每次提交都是新行。
- * @returns {object} 已解析 JSON 字段的完整提交行
+ * 登记任务成果提交。必填 task_id、commit_refs（非空）、summary、submitted_by。
+ * 必须持有该任务的 active 认领（本人），且租约未过期：
+ * - 传 claim_id 时按该认领校验（可用 fencing_token 防旧权利写入）；
+ * - 不传 claim_id 时按提交人查找 active 认领（兼容旧调用）。
+ * 只有 owner 的提交会把任务置为 submitted；协作者的提交只记为贡献。
+ * @returns {object} 已解析 JSON 字段的完整提交行（含 contribution 标记）
  */
 export function createSubmission(db, input = {}) {
   const submissionId = pick(input, 'submission_id', 'submissionId') ?? newId('sub');
@@ -85,14 +76,34 @@ export function createSubmission(db, input = {}) {
 
   db.exec('BEGIN');
   try {
-    const claim = getActiveClaim(db, taskId);
-    if (!claim || claim.worker_id !== submittedBy) {
-      throw Object.assign(new Error('只有当前活跃认领的认领者本人才能提交成果'), {
-        code: 'SUBMISSION_NOT_ALLOWED',
-        status: 409,
+    const claimIdInput = pick(input, 'claim_id', 'claimId');
+    let claim;
+    if (claimIdInput) {
+      claim = assertClaimValid(db, claimIdInput, {
+        actor_id: submittedBy,
+        fencing_token: pick(input, 'fencing_token', 'fencingToken'),
       });
+      if (claim.task_id !== taskId) {
+        throw Object.assign(new Error('认领不属于该任务'), {
+          code: 'CLAIM_NOT_OWNED',
+          status: 409,
+        });
+      }
+    } else {
+      claim = db.prepare(`SELECT * FROM claims WHERE task_id = ? AND status = 'active'
+        AND (actor_id = ? OR worker_id = ?)
+        ORDER BY claimed_at ASC, claim_id ASC LIMIT 1`).get(taskId, submittedBy, submittedBy);
+      if (!claim) {
+        throw Object.assign(new Error('只有当前活跃认领的认领者本人才能提交成果'), {
+          code: 'SUBMISSION_NOT_ALLOWED',
+          status: 409,
+        });
+      }
+      // 旧调用没有 fencing，但仍必须租约有效。
+      claim = assertClaimValid(db, claim.claim_id, { actor_id: submittedBy });
     }
 
+    const isOwner = (claim.role ?? 'owner') === 'owner';
     const now = pick(input, 'submitted_at', 'submittedAt') ?? nowIso();
     db.prepare(INSERT_SUBMISSION).run(
       submissionId,
@@ -103,27 +114,30 @@ export function createSubmission(db, input = {}) {
       pick(input, 'self_test', 'selfTest'),
       jsonField(input, 'known_gaps'),
       jsonField(input, 'artifacts'),
-      submittedBy,
+      isOwner ? submittedBy : `${submittedBy} (collaborator)`,
       now,
       pick(input, 'created_at', 'createdAt') ?? now,
     );
 
-    db.prepare(`UPDATE tasks SET status = 'submitted' WHERE task_id = ?`).run(taskId);
+    if (isOwner) {
+      db.prepare(`UPDATE tasks SET status = 'submitted', revision = revision + 1 WHERE task_id = ?`)
+        .run(taskId);
+    }
 
     appendEvent(db, {
       project_id: task.project_id,
       object_type: 'submission',
       object_id: submissionId,
-      event_type: 'submission.created',
+      event_type: isOwner ? 'submission.created' : 'submission.contributed',
       actor: submittedBy,
       occurred_at: now,
       reason: summary,
-      refs: [taskId],
+      refs: [taskId, claim.claim_id],
     });
 
     const submission = getSubmission(db, submissionId);
     db.exec('COMMIT');
-    return submission;
+    return { ...submission, contribution: !isOwner };
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
@@ -249,7 +263,7 @@ export function createReview(db, input = {}) {
     } else if (conclusion === 'reject') {
       db.prepare(`UPDATE tasks SET status = 'rework' WHERE task_id = ?`).run(task.task_id);
 
-      const claim = getActiveClaim(db, task.task_id);
+      const claim = activeOwnerClaim(db, task.task_id);
       if (claim) {
         db.prepare(
           `UPDATE claims SET status = 'released', released_at = ? WHERE claim_id = ?`,

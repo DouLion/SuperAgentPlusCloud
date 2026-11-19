@@ -9,6 +9,7 @@ import { run as runShow } from '../src/commands/show.mjs';
 import { run as runTasks } from '../src/commands/tasks.mjs';
 import { run as runClaim } from '../src/commands/claim.mjs';
 import { run as runRelease } from '../src/commands/release.mjs';
+import { run as runHeartbeat } from '../src/commands/heartbeat.mjs';
 import { run as runDeliver } from '../src/commands/deliver.mjs';
 import { run as runReview } from '../src/commands/review.mjs';
 import { run as runChange } from '../src/commands/change.mjs';
@@ -56,6 +57,7 @@ const handlers = new Map([
   ['tasks', runTasks],
   ['claim', runClaim],
   ['release', runRelease],
+  ['heartbeat', runHeartbeat],
   ['deliver', runDeliver],
   ['review', runReview],
   ['change', runChange],

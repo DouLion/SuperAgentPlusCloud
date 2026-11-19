@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS tasks (
                        CHECK (status IN ('draft', 'open', 'claimed', 'submitted',
                                          'rework', 'accepted', 'closed',
                                          'cancelled')),
+  revision             INTEGER NOT NULL DEFAULT 1,
   created_by           TEXT,
   created_at           TEXT NOT NULL
 );
@@ -140,8 +141,16 @@ CREATE TABLE IF NOT EXISTS claims (
   claim_id    TEXT PRIMARY KEY,
   task_id     TEXT NOT NULL REFERENCES tasks (task_id),
   worker_id   TEXT,
+  actor_id    TEXT,
+  role        TEXT NOT NULL DEFAULT 'owner'
+              CHECK (role IN ('owner', 'collaborator')),
   claimed_at  TEXT NOT NULL,
+  heartbeat_at TEXT,
+  lease_expires_at TEXT,
+  fencing_token INTEGER NOT NULL DEFAULT 0,
+  attempt_no  INTEGER NOT NULL DEFAULT 1,
   released_at TEXT,
+  released_reason TEXT,
   status      TEXT NOT NULL DEFAULT 'active'
               CHECK (status IN ('active', 'released', 'completed', 'expired')),
   created_at  TEXT NOT NULL

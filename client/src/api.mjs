@@ -150,8 +150,15 @@ export const api = {
 
   claimTask: (taskId, input, options) =>
     apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/claim`, input, options),
+  joinTask: (taskId, input, options) =>
+    apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/join`, input, options),
   releaseTask: (taskId, input, options) =>
     apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/release`, input, options),
+  heartbeatClaim: (claimId, input, options) =>
+    apiRequest('POST', `/claims/${encodeURIComponent(claimId)}/heartbeat`, input, options),
+  releaseClaim: (claimId, input, options) =>
+    apiRequest('POST', `/claims/${encodeURIComponent(claimId)}/release`, input, options),
+  sweepLeases: (input, options) => apiRequest('POST', '/leases/sweep', input ?? {}, options),
   listClaims: (taskId, options) =>
     apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/claims`, undefined, options),
 

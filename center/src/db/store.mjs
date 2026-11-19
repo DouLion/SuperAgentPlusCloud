@@ -146,6 +146,42 @@ export function openStore(dbPath = DEFAULT_DB_PATH) {
 }
 
 /**
+ * 旧库的 claims 没有角色/租约字段。补列后可能存在同一任务多条 active 认领，
+ * 直接建唯一索引会失败，因此先把多余的 active 认领标记为 expired。
+ */
+function ensureClaimLeaseColumns(db) {
+  const columns = db.prepare('PRAGMA table_info(claims)').all().map((row) => row.name);
+  const additions = [
+    ['actor_id', 'TEXT'],
+    ['role', "TEXT NOT NULL DEFAULT 'owner'"],
+    ['heartbeat_at', 'TEXT'],
+    ['lease_expires_at', 'TEXT'],
+    ['fencing_token', 'INTEGER NOT NULL DEFAULT 0'],
+    ['attempt_no', 'INTEGER NOT NULL DEFAULT 1'],
+    ['released_reason', 'TEXT'],
+  ];
+  for (const [column, definition] of additions) {
+    if (!columns.includes(column)) db.exec(`ALTER TABLE claims ADD COLUMN ${column} ${definition}`);
+  }
+
+  // 历史数据：worker_id 同步到 actor_id；同一任务只保留最早一条 active owner。
+  db.prepare(`UPDATE claims SET actor_id = worker_id WHERE actor_id IS NULL AND worker_id IS NOT NULL`).run();
+  db.prepare(`UPDATE claims SET fencing_token = 1 WHERE fencing_token = 0`).run();
+  const duplicates = db.prepare(`SELECT task_id FROM claims WHERE status = 'active' AND role = 'owner'
+    GROUP BY task_id HAVING COUNT(*) > 1`).all();
+  for (const row of duplicates) {
+    const keep = db.prepare(`SELECT claim_id FROM claims WHERE task_id = ? AND status = 'active'
+      AND role = 'owner' ORDER BY claimed_at ASC, claim_id ASC LIMIT 1`).get(row.task_id);
+    db.prepare(`UPDATE claims SET status = 'expired', released_at = ?, released_reason = 'migration_dedupe'
+      WHERE task_id = ? AND status = 'active' AND role = 'owner' AND claim_id != ?`)
+      .run(new Date().toISOString(), row.task_id, keep.claim_id);
+  }
+
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_claims_active_owner
+    ON claims (task_id) WHERE status = 'active' AND role = 'owner'`);
+}
+
+/**
  * 执行建表迁移；可重复执行（IF NOT EXISTS）。
  * @param {import('node:sqlite').DatabaseSync} [db] 缺省时打开默认库
  */
@@ -154,11 +190,13 @@ export function migrate(db = openStore()) {
   db.exec(sql);
   ensureColumn(db, 'requirements', 'final_level', 'TEXT');
   ensureColumn(db, 'trunk_changes', 'policy_ref', 'TEXT');
+  ensureColumn(db, 'tasks', 'revision', 'INTEGER NOT NULL DEFAULT 1');
   for (const [table, column] of ACTOR_TYPE_COLUMNS) {
     ensureColumn(db, table, column, 'TEXT');
   }
   ensureContractOrchestrationSuggestionKind(db);
   ensureDefinitionEventTypes(db);
+  ensureClaimLeaseColumns(db);
   return db;
 }
 

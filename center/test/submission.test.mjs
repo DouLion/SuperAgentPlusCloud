@@ -1,4 +1,4 @@
-﻿// Center 提交与评审测试（T4）。
+// Center 提交与评审测试（T4）。
 // 运行：node --test center/test/
 // 测试数据库使用系统临时目录，结束后删除。
 
@@ -471,7 +471,7 @@ test('事件：提交与各评审结论都写入事件', () => {
   })[0];
   assert.equal(submissionEvent.event_type, 'submission.created');
   assert.equal(submissionEvent.actor, 'worker_a');
-  assert.deepEqual(submissionEvent.refs, [confirmed.task.task_id]);
+  assert.deepEqual(submissionEvent.refs, [confirmed.task.task_id, confirmed.claim.claim_id]);
 
   const reviewEvent = listEvents(db, {
     project_id: project.project_id,

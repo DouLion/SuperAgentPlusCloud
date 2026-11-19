@@ -59,6 +59,7 @@ export async function run(argv, io = {}) {
   }
 
   try {
+    const fencingRaw = optionalFlag(flags, 'fencing');
     const submission = await api.createSubmission(taskId, {
       commit_refs: commitRefs,
       // 未显式给出摘要时给出可读默认值，便于快速登记。
@@ -66,10 +67,15 @@ export async function run(argv, io = {}) {
       self_test: optionalFlag(flags, 'self-test'),
       known_gaps: gaps,
       submitted_by: workerId,
+      claim_id: optionalFlag(flags, 'claim'),
+      fencing_token: fencingRaw === undefined ? undefined : Number(fencingRaw),
     });
 
     out(`提交已登记：${submission.submission_id}`);
     out(`任务：${taskId}　提交人：${submission.submitted_by}`);
+    if (submission.contribution) {
+      out('说明：本次为协作者贡献，任务状态由 owner 提交时推进。');
+    }
     out('commit 引用：');
     for (const ref of submission.commit_refs) {
       out(`  - ${formatCommitRef(ref)}`);

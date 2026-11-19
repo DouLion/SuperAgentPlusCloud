@@ -1,4 +1,4 @@
-﻿// Client 任务与认领测试（T3）：用 node:http 假 Center 验证
+// Client 任务与认领测试（T3）：用 node:http 假 Center 验证
 // tasks / claim / release 的请求路径、参数与错误透出。
 // 运行：node --test client/test/
 
@@ -111,9 +111,14 @@ function startFakeCenter() {
         const claim = {
           claim_id: `clm_${state.claimSeq++}`,
           task_id: task.task_id,
-          worker_id: body.worker_id,
+          worker_id: body.actor_id ?? body.worker_id,
+          actor_id: body.actor_id ?? body.worker_id,
+          role: body.role ?? 'owner',
           status: 'active',
+          fencing_token: state.claimSeq,
           claimed_at: '2026-11-18T00:00:00.000Z',
+          heartbeat_at: '2026-11-18T00:00:00.000Z',
+          lease_expires_at: '2026-11-18T00:30:00.000Z',
           released_at: null,
         };
         state.claims.push(claim);
@@ -132,7 +137,8 @@ function startFakeCenter() {
             code: 'CLAIM_NOT_RELEASABLE',
           });
         }
-        if (claim.worker_id !== body.worker_id) {
+        const actor = body.actor_id ?? body.worker_id;
+        if ((claim.actor_id ?? claim.worker_id) !== actor) {
           return send(409, {
             ok: false,
             error: '只有认领者本人可以释放该任务',

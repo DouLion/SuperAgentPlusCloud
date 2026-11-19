@@ -1,4 +1,4 @@
-﻿// Center 任务与认领测试（T3）。
+// Center 任务与认领测试（T3）。
 // 运行：node --test center/test/
 // 测试数据库使用系统临时目录，结束后删除。
 
@@ -386,14 +386,14 @@ test('事件：创建、开放、认领、释放都产生事件', () => {
   releaseTask(db, task.task_id, 'worker_a');
 
   const types = listEvents(db, { projectId: project.project_id }).map((e) => e.event_type);
-  for (const expected of ['task.created', 'task.updated', 'task.claimed', 'task.released']) {
+  for (const expected of ['task.created', 'task.updated', 'claim.claimed', 'claim.released']) {
     assert.ok(types.includes(expected), `缺少事件：${expected}`);
   }
 
   const claimed = listEvents(db, {
     projectId: project.project_id,
     object_id: task.task_id,
-    event_type: 'task.claimed',
+    event_type: 'claim.claimed',
   });
   assert.equal(claimed.length, 1);
   assert.equal(claimed[0].actor, 'worker_a');
