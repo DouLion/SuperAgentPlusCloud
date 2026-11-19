@@ -254,7 +254,70 @@ async function createDemo() {
       owner_id: '演示',
     });
 
-    ElMessage.success('演示项目已创建：主干、需求、任务与一条待检查变更都在其中。');
+    // 6) 项目约定包：禁止 PUT/DELETE、统一响应包络、路径 kebab、字段 camel。
+    const pack = await api.createConventionPack({
+      name: '演示：API 约定',
+      description: '团队偏好示例，可按项目改写。',
+      scope: 'project',
+      project_id: projectId,
+      created_by: '演示',
+      rules: [
+        { key: 'api.methods.forbidden', category: 'api', title: '禁止 PUT/DELETE', severity: 'must', value: { methods: ['put', 'delete'] }, rationale: '网关与审计只支持查询/动作式 POST。' },
+        { key: 'api.response', category: 'api', title: '统一响应包络', severity: 'must', value: { fields: ['status', 'message', 'data'] }, rationale: '前端统一按包络解析。' },
+        { key: 'api.path.case', category: 'api', title: '路径 kebab-case', severity: 'must', value: { style: 'kebab-case' } },
+        { key: 'api.field.case', category: 'api', title: '字段 camelCase', severity: 'should', value: { style: 'camelCase' } },
+      ],
+    });
+    await api.activateConventionPack(pack.pack_id, { activated_by: '演示', reason: '演示项目启用 API 约定' });
+
+    // 7) 编排模板：内置 contract-first-api 落到本项目。
+    await api.seedWorkflowTemplates({ project_id: projectId, created_by: '演示' });
+
+    // 8) 一份符合约定的 API 契约，校验通过后发布。
+    const contract = await api.createArtifact({
+      project_id: projectId,
+      type: 'api_contract',
+      name: '演示订单 API',
+      created_by: '演示',
+      content: {
+        openapi: '3.1.0',
+        info: { title: '演示订单 API', version: '1.0.0' },
+        paths: {
+          '/orders/query': {
+            post: {
+              operationId: 'queryOrders',
+              summary: '按条件查询订单',
+              responses: {
+                200: {
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/OrderListEnvelope' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        components: {
+          schemas: {
+            OrderListEnvelope: {
+              type: 'object',
+              required: ['status', 'message', 'data'],
+              properties: {
+                status: { type: 'integer', const: 1 },
+                message: { type: 'string', example: 'ok' },
+                data: { type: 'array', items: { $ref: '#/components/schemas/Order' } },
+              },
+            },
+            Order: { type: 'object', properties: { orderId: { type: 'string', example: 'O-1' } } },
+          },
+        },
+      },
+    });
+    await api.publishArtifact(contract.artifact_id, { published_by: '演示', reason: '演示契约首版' });
+
+    ElMessage.success('演示项目已创建：主干、需求、任务、变更、约定包、编排模板与已发布契约都在其中。');
     await load();
     go(router, 'dashboard', { id: projectId });
   } catch (err) {

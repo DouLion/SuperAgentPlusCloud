@@ -129,6 +129,44 @@ export const api = {
   adviseTrunkChange: (id) =>
     request('POST', `/trunk-changes/${encodeURIComponent(id)}/advice`, {}),
   listAiSuggestions: (query) => request('GET', `/ai/suggestions${queryString(query)}`),
+
+  // 约定包（T12）
+  listConventionPacks: (query) => request('GET', `/convention-packs${queryString(query)}`),
+  createConventionPack: (input) => request('POST', '/convention-packs', input),
+  getConventionPack: (id) => request('GET', `/convention-packs/${encodeURIComponent(id)}`),
+  activateConventionPack: (id, input) =>
+    request('POST', `/convention-packs/${encodeURIComponent(id)}/activate`, input),
+  retireConventionPack: (id, input) =>
+    request('POST', `/convention-packs/${encodeURIComponent(id)}/retire`, input),
+  importConventionPack: (id, input) =>
+    request('POST', `/convention-packs/${encodeURIComponent(id)}/import`, input),
+
+  // 编排模板（T12）
+  listWorkflowTemplates: (query) => request('GET', `/workflow-templates${queryString(query)}`),
+  createWorkflowTemplate: (input) => request('POST', '/workflow-templates', input),
+  getWorkflowTemplate: (id) => request('GET', `/workflow-templates/${encodeURIComponent(id)}`),
+  activateWorkflowTemplate: (id, input) =>
+    request('POST', `/workflow-templates/${encodeURIComponent(id)}/activate`, input),
+  retireWorkflowTemplate: (id, input) =>
+    request('POST', `/workflow-templates/${encodeURIComponent(id)}/retire`, input),
+  seedWorkflowTemplates: (input) => request('POST', '/workflow-templates/seed', input),
+
+  // 制品与契约（T13）
+  listArtifacts: (query) => request('GET', `/artifacts${queryString(query)}`),
+  createArtifact: (input) => request('POST', '/artifacts', input),
+  getArtifact: (id) => request('GET', `/artifacts/${encodeURIComponent(id)}`),
+  validateArtifact: (id) => request('GET', `/artifacts/${encodeURIComponent(id)}/validate`),
+  publishArtifact: (id, input) =>
+    request('POST', `/artifacts/${encodeURIComponent(id)}/publish`, input),
+  retireArtifact: (id, input) =>
+    request('POST', `/artifacts/${encodeURIComponent(id)}/retire`, input),
+  artifactDocumentUrl: (id) => `${BASE}${API_PREFIX}/artifacts/${encodeURIComponent(id)}/document`,
+
+  // 契约优先编排（T14）
+  orchestrateRequirement: (id, input = {}) =>
+    request('POST', `/requirements/${encodeURIComponent(id)}/orchestrate`, input),
+  adoptOrchestration: (suggestionId, input) =>
+    request('POST', `/ai/suggestions/${encodeURIComponent(suggestionId)}/adopt-orchestration`, input),
 };
 
 /** 统一错误文案：网络错误与 AI 未配置给出可操作提示，其余透出服务端中文错误。 */
