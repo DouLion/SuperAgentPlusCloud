@@ -25,6 +25,9 @@ export const IMPLEMENTED_COMMANDS = [
   'workflow',
   'artifact',
   'orchestrate',
+  'actor',
+  'delegate',
+  'member',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -143,6 +146,24 @@ export const PLANNED_COMMANDS = [
     desc: 'T14 API 契约优先编排：先生成未生效建议；具名采纳后创建 draft 契约与 open 任务',
     implemented: true,
   },
+  {
+    name: 'actor',
+    usage: 'sap actor create|list|show|disable|token|revoke-token ...',
+    desc: 'P1 主体与凭据：human / agent / service；agent 必须绑定人类责任人',
+    implemented: true,
+  },
+  {
+    name: 'delegate',
+    usage: 'sap delegate add|list|revoke ...',
+    desc: 'P1 委派：Agent 代表人类行动，可限项目与动作，可撤销',
+    implemented: true,
+  },
+  {
+    name: 'member',
+    usage: 'sap member add|list --project <id> ...',
+    desc: 'P1 项目成员与角色：owner/contributor/reviewer/direction/publisher/observer',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -155,9 +176,11 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '',
     `Center 地址：${centerUrl}（环境变量 CENTER_URL 可覆盖）`,
     '',
+    '鉴权：设置 SAP_TOKEN 或追加 --token <token>（人类专属动作必须使用 human 凭据）。',
+    '',
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T14 API 契约优先编排 —— AI 只生成 contract_orchestration 建议，人采纳后创建 draft 契约与 open 任务。',
+    '当前进度：P1 身份与授权 —— 主体、凭据、委派与项目成员；人类专属动作需要 human 凭据。',
   ].join('\n');
 }

@@ -327,7 +327,10 @@ CREATE INDEX IF NOT EXISTS idx_workflow_templates_kind_status
 CREATE TABLE IF NOT EXISTS definition_events (
   event_id    TEXT PRIMARY KEY,
   project_id  TEXT REFERENCES projects (project_id),
-  object_type TEXT NOT NULL CHECK (object_type IN ('convention_pack', 'workflow_template')),
+  object_type TEXT NOT NULL CHECK (object_type IN (
+                'convention_pack', 'workflow_template',
+                'actor', 'credential', 'delegation', 'project_member'
+              )),
   object_id   TEXT NOT NULL,
   event_type  TEXT NOT NULL,
   actor       TEXT NOT NULL,
@@ -370,4 +373,59 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_project_type_status
   ON artifacts (project_id, type, status);
 CREATE INDEX IF NOT EXISTS idx_artifacts_project_name_version
   ON artifacts (project_id, name, version);
+
+-- 身份与授权（P1）------------------------------------------------------------
+-- 主体：人类 / Agent / 服务账号。Agent 必须通过 delegations 绑定人类责任人。
+CREATE TABLE IF NOT EXISTS actors (
+  actor_id     TEXT PRIMARY KEY,
+  type         TEXT NOT NULL CHECK (type IN ('human', 'agent', 'service')),
+  display_name TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+  created_at   TEXT NOT NULL,
+  created_by   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_actors_type_status ON actors (type, status);
+
+-- 凭据：只存 token 哈希，明文仅在签发时返回一次。
+CREATE TABLE IF NOT EXISTS actor_credentials (
+  credential_id TEXT PRIMARY KEY,
+  actor_id      TEXT NOT NULL REFERENCES actors (actor_id),
+  token_hash    TEXT NOT NULL UNIQUE,
+  label         TEXT,
+  expires_at    TEXT,
+  revoked_at    TEXT,
+  last_used_at  TEXT,
+  created_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_credentials_actor ON actor_credentials (actor_id);
+
+-- 委派：Agent 代表某个人类行动，可限项目、限动作、可撤销。
+CREATE TABLE IF NOT EXISTS delegations (
+  delegation_id   TEXT PRIMARY KEY,
+  agent_actor_id  TEXT NOT NULL REFERENCES actors (actor_id),
+  on_behalf_of    TEXT NOT NULL REFERENCES actors (actor_id),
+  project_id      TEXT REFERENCES projects (project_id),
+  allowed_actions TEXT NOT NULL DEFAULT '[]',
+  valid_from      TEXT NOT NULL,
+  valid_until     TEXT NOT NULL,
+  revoked_at      TEXT,
+  created_by      TEXT,
+  created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_delegations_agent ON delegations (agent_actor_id);
+CREATE INDEX IF NOT EXISTS idx_delegations_project ON delegations (project_id);
+
+-- 项目成员：角色只决定可被指派到哪些动作，具体仍由策略判断。
+CREATE TABLE IF NOT EXISTS project_members (
+  project_id TEXT NOT NULL REFERENCES projects (project_id),
+  actor_id   TEXT NOT NULL REFERENCES actors (actor_id),
+  roles      TEXT NOT NULL DEFAULT '[]',
+  added_at   TEXT NOT NULL,
+  PRIMARY KEY (project_id, actor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_members_project ON project_members (project_id);
 

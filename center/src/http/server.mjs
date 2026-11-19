@@ -17,6 +17,7 @@ import { ROUTES as SETUP_ROUTES } from './routes/setup.mjs';
 import { ROUTES as CONVENTION_ROUTES } from './routes/conventions.mjs';
 import { ROUTES as WORKFLOW_ROUTES } from './routes/workflows.mjs';
 import { ROUTES as ARTIFACT_ROUTES } from './routes/artifacts.mjs';
+import { ROUTES as ACTOR_ROUTES } from './routes/actors.mjs';
 import { ROUTES as MOCK_ROUTES } from './routes/mock.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
@@ -86,6 +87,7 @@ export const ROUTES = [
   ...CONVENTION_ROUTES,
   ...WORKFLOW_ROUTES,
   ...ARTIFACT_ROUTES,
+  ...ACTOR_ROUTES,
   ...MOCK_ROUTES,
 ];
 

@@ -21,8 +21,32 @@ import { run as runConvention } from '../src/commands/convention.mjs';
 import { run as runWorkflow } from '../src/commands/workflow.mjs';
 import { run as runArtifact } from '../src/commands/artifact.mjs';
 import { run as runOrchestrate } from '../src/commands/orchestrate.mjs';
+import { run as runActor } from '../src/commands/actor.mjs';
+import { run as runDelegate } from '../src/commands/delegate.mjs';
+import { run as runMember } from '../src/commands/member.mjs';
 
-const args = process.argv.slice(2);
+/** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
+function extractToken(argv) {
+  const rest = [];
+  let token;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--token') {
+      token = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--token=')) {
+      token = arg.slice('--token='.length);
+      continue;
+    }
+    rest.push(arg);
+  }
+  if (token) process.env.SAP_TOKEN = token;
+  return rest;
+}
+
+const args = extractToken(process.argv.slice(2));
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
 
 const handlers = new Map([
@@ -44,6 +68,9 @@ const handlers = new Map([
   ['workflow', runWorkflow],
   ['artifact', runArtifact],
   ['orchestrate', runOrchestrate],
+  ['actor', runActor],
+  ['delegate', runDelegate],
+  ['member', runMember],
 ]);
 
 function main(argv) {

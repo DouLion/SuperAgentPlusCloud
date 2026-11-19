@@ -8,6 +8,7 @@ import {
   retireArtifact,
 } from '../../db/artifacts.mjs';
 import { activeConventionRules, renderOpenApiHtml, validateOpenApi } from '../../contracts/openapi.mjs';
+import { assertCan, stampActorType } from '../../auth/policy.mjs';
 
 function requireArtifact(db, id) {
   const artifact = getArtifact(db, id);
@@ -45,9 +46,10 @@ export const ROUTES = [
   },
   {
     method: 'POST', pattern: '/artifacts/:id/publish',
-    handler: ({ db, params, body }) => {
+    handler: ({ db, params, body, req }) => {
       const artifact = getArtifact(db, params.id);
       if (!artifact) return { status: 404, body: { error: `制品不存在：${params.id}` } };
+      const auth = assertCan(db, req, 'artifact.publish', { project_id: artifact.project_id });
       const validation = validateContract(db, artifact);
       if (!validation.valid) {
         return {
@@ -59,7 +61,14 @@ export const ROUTES = [
           },
         };
       }
-      return { status: 200, body: { artifact: publishArtifact(db, params.id, body), validation } };
+      const payload = { ...body };
+      if (!payload.published_by && !payload.publishedBy && auth.actor) {
+        payload.published_by = auth.actor.display_name;
+      }
+      if (!payload.reason) payload.reason = '发布制品';
+      const published = publishArtifact(db, params.id, payload);
+      stampActorType(db, 'artifacts', 'artifact_id', params.id, auth.actor_type);
+      return { status: 200, body: { artifact: { ...published, published_actor_type: auth.actor_type }, validation } };
     },
   },
   {

@@ -8,6 +8,7 @@ import {
   listConventionPacks,
   retireConventionPack,
 } from '../../db/conventions.mjs';
+import { assertCan, stampActorType } from '../../auth/policy.mjs';
 
 function requirePack(db, id) {
   const pack = getConventionPack(db, id);
@@ -30,7 +31,19 @@ export const ROUTES = [
   },
   {
     method: 'POST', pattern: '/convention-packs/:id/activate',
-    handler: ({ db, params, body }) => ({ status: 200, body: activateConventionPack(db, params.id, body) }),
+    handler: ({ db, params, body, req }) => {
+      const pack = getConventionPack(db, params.id);
+      if (!pack) return { status: 404, body: { error: `约定包不存在：${params.id}` } };
+      const auth = assertCan(db, req, 'convention_pack.activate', { project_id: pack.project_id });
+      const payload = { ...body };
+      if (!payload.activated_by && !payload.activatedBy && auth.actor) {
+        payload.activated_by = auth.actor.display_name;
+      }
+      if (!payload.reason) payload.reason = '启用约定包';
+      const updated = activateConventionPack(db, params.id, payload);
+      stampActorType(db, 'convention_packs', 'pack_id', params.id, auth.actor_type);
+      return { status: 200, body: updated };
+    },
   },
   {
     method: 'POST', pattern: '/convention-packs/:id/retire',

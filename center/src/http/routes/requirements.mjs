@@ -11,6 +11,7 @@ import {
   listRequirements,
 } from '../../db/requirements.mjs';
 import { createTask, openTask } from '../../db/tasks.mjs';
+import { assertCan, stampActorType } from '../../auth/policy.mjs';
 
 export const ROUTES = [
   {
@@ -68,10 +69,20 @@ export const ROUTES = [
   {
     method: 'POST',
     pattern: '/requirements/:id/decision',
-    handler: ({ params, body, db }) => ({
-      status: 201,
-      body: createDecision(db, { ...body, requirement_id: params.id }),
-    }),
+    handler: ({ params, body, db, req }) => {
+      const requirement = getRequirement(db, params.id);
+      if (!requirement) {
+        return { status: 404, body: { ok: false, error: `需求不存在：${params.id}` } };
+      }
+      const auth = assertCan(db, req, 'decision.confirm', { project_id: requirement.project_id });
+      const payload = { ...body, requirement_id: params.id };
+      if (!payload.confirmed_by && !payload.confirmedBy && auth.actor) {
+        payload.confirmed_by = auth.actor.display_name;
+      }
+      const decision = createDecision(db, payload);
+      stampActorType(db, 'decisions', 'decision_id', decision.decision_id, auth.actor_type);
+      return { status: 201, body: { ...decision, confirmed_actor_type: auth.actor_type } };
+    },
   },
 
   {

@@ -34,8 +34,12 @@ function queryString(query) {
 export async function apiRequest(method, path, body, options = {}) {
   const base = options.url || resolveCenterUrl(options.env);
   const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const env = options.env || process.env;
 
   const init = { method, headers: {} };
+  // token 优先级：显式 options.token > 环境变量 SAP_TOKEN。缺失时不发送该头（兼容 legacy 模式）。
+  const token = options.token ?? env.SAP_TOKEN ?? '';
+  if (token) init.headers.authorization = `Bearer ${token}`;
   if (body !== undefined) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -280,9 +284,29 @@ export const api = {
       options,
     ),
 
+  // 身份与授权（P1）
+  createActor: (input, options) => apiRequest('POST', '/actors', input, options),
+  listActors: (query, options) =>
+    apiRequest('GET', `/actors${queryString(query)}`, undefined, options),
+  getActor: (id, options) => apiRequest('GET', `/actors/${encodeURIComponent(id)}`, undefined, options),
+  disableActor: (id, input, options) =>
+    apiRequest('POST', `/actors/${encodeURIComponent(id)}/disable`, input, options),
+  issueCredential: (id, input, options) =>
+    apiRequest('POST', `/actors/${encodeURIComponent(id)}/credentials`, input, options),
+  revokeCredential: (id, options) =>
+    apiRequest('DELETE', `/credentials/${encodeURIComponent(id)}`, undefined, options),
+  createDelegation: (input, options) => apiRequest('POST', '/delegations', input, options),
+  listDelegations: (query, options) =>
+    apiRequest('GET', `/delegations${queryString(query)}`, undefined, options),
+  revokeDelegation: (id, input, options) =>
+    apiRequest('POST', `/delegations/${encodeURIComponent(id)}/revoke`, input, options),
+  listMembers: (projectId, options) =>
+    apiRequest('GET', `/projects/${encodeURIComponent(projectId)}/members`, undefined, options),
+  addMember: (projectId, input, options) =>
+    apiRequest('POST', `/projects/${encodeURIComponent(projectId)}/members`, input, options),
+
   listConventionPacks: (query, options) =>
-    apiRequest('GET', `/convention-packs${queryString(query)}`, undefined, options),
-  getConventionPack: (id, options) =>
+    apiRequest('GET', `/convention-packs${queryString(query)}`, undefined, options),  getConventionPack: (id, options) =>
     apiRequest('GET', `/convention-packs/${encodeURIComponent(id)}`, undefined, options),
   createConventionPack: (input, options) =>
     apiRequest('POST', '/convention-packs', input, options),

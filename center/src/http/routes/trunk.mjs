@@ -7,6 +7,7 @@ import {
   listTrunkItems,
   retireTrunkItem,
 } from '../../db/trunk.mjs';
+import { assertCan, stampActorType } from '../../auth/policy.mjs';
 
 export const ROUTES = [
   {
@@ -40,21 +41,34 @@ export const ROUTES = [
   {
     method: 'POST',
     pattern: '/trunk-items/:id/confirm',
-    handler: ({ params, body, db }) => {
-      if (!getTrunkItem(db, params.id)) {
+    handler: ({ params, body, db, req }) => {
+      const item = getTrunkItem(db, params.id);
+      if (!item) {
         return { status: 404, body: { ok: false, error: `主干条目不存在：${params.id}` } };
       }
-      return { status: 200, body: confirmTrunkItem(db, params.id, body) };
+      const auth = assertCan(db, req, 'trunk_item.confirm', { project_id: item.project_id });
+      const payload = { ...body };
+      if (!payload.confirmed_by && !payload.confirmedBy && auth.actor) {
+        payload.confirmed_by = auth.actor.display_name;
+      }
+      const updated = confirmTrunkItem(db, params.id, payload);
+      stampActorType(db, 'trunk_items', 'item_id', params.id, auth.actor_type);
+      return { status: 200, body: { ...updated, confirmed_actor_type: auth.actor_type } };
     },
   },
   {
     method: 'POST',
     pattern: '/trunk-items/:id/retire',
-    handler: ({ params, body, db }) => {
-      if (!getTrunkItem(db, params.id)) {
+    handler: ({ params, body, db, req }) => {
+      const item = getTrunkItem(db, params.id);
+      if (!item) {
         return { status: 404, body: { ok: false, error: `主干条目不存在：${params.id}` } };
       }
-      return { status: 200, body: retireTrunkItem(db, params.id, body) };
+      const auth = assertCan(db, req, 'trunk_item.retire', { project_id: item.project_id });
+      return {
+        status: 200,
+        body: { ...retireTrunkItem(db, params.id, body), retired_actor_type: auth.actor_type },
+      };
     },
   },
 ];

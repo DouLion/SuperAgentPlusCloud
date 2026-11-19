@@ -176,6 +176,14 @@ export function aiConfigured(env = process.env) {
   return Boolean(baseUrl && apiKey);
 }
 
+/** 授权模式：optional（默认，无 token 走 legacy）/ required（写操作必须带 token）。 */
+export const AUTH_MODES = ['optional', 'required'];
+
+export function authMode(env = process.env) {
+  const raw = String(env.SAP_AUTH_MODE || 'optional').toLowerCase();
+  return AUTH_MODES.includes(raw) ? raw : 'optional';
+}
+
 // ── 兼容现有引用的快照（模块加载时求值）──────────────────────────────
 const resolved = resolveConfig();
 
