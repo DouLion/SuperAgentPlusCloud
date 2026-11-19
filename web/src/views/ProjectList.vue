@@ -125,7 +125,300 @@ async function submitCreate() {
   }
 }
 
-/** 用正常 API 造一个演示项目；任一步失败保留已创建的项目并给出可读错误。 */
+const DEMO_PROJECT_NAME = 'SuperAgentPlusCloud（演示）';
+
+/** 演示项目里的约定规则，创建与展示共用一份定义。 */
+const DEMO_RULES = [
+  { key: 'api.methods.forbidden', category: 'api', title: '禁止 PUT/DELETE', severity: 'must', value: { methods: ['put', 'delete'] }, rationale: '网关与审计只支持查询/动作式 POST。' },
+  { key: 'api.response', category: 'api', title: '统一响应包络', severity: 'must', value: { fields: ['status', 'message', 'data'] }, rationale: '前端统一按包络解析。' },
+  { key: 'api.path.case', category: 'api', title: '路径 kebab-case', severity: 'must', value: { style: 'kebab-case' } },
+  { key: 'api.field.case', category: 'api', title: '字段 camelCase', severity: 'should', value: { style: 'camelCase' } },
+];
+
+/** 演示契约正文：v2 额外多一个接口，用来说明「契约变了」会带来影响。 */
+function demoContract(version, extraPath = false) {
+  return {
+    openapi: '3.1.0',
+    info: { title: '演示订单 API', version },
+    paths: {
+      '/orders/query': {
+        post: {
+          operationId: 'queryOrders',
+          summary: '按条件查询订单',
+          responses: { 200: { content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderListEnvelope' } } } } },
+        },
+      },
+      ...(extraPath ? {
+        '/orders/detail': {
+          post: {
+            operationId: 'orderDetail',
+            summary: '查询订单详情',
+            responses: { 200: { content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderListEnvelope' } } } } },
+          },
+        },
+      } : {}),
+    },
+    components: {
+      schemas: {
+        OrderListEnvelope: {
+          type: 'object',
+          required: ['status', 'message', 'data'],
+          properties: {
+            status: { type: 'integer', const: 1 },
+            message: { type: 'string', example: 'ok' },
+            data: { type: 'array', items: { $ref: '#/components/schemas/Order' } },
+          },
+        },
+        Order: { type: 'object', properties: { orderId: { type: 'string', example: 'O-1' } } },
+      },
+    },
+  };
+}
+
+const DEMO_MEETING = [
+  '会议主题：订单导出与接口前缀调整',
+  '一、背景',
+  '运营反馈导出接口在数据量大时超时；前端点击导出按钮偶发无响应。',
+  '二、结论',
+  '1. 导出接口改为 POST /orders/query 的异步任务式调用，返回包络统一为 {status,message,data}。',
+  '2. 页面与接口前缀统一到 /sap-cloud，旧路径保留 308 迁移提示。',
+  '3. 前端与后端先对齐契约，再各自实现，最后联调；契约变更需登记影响。',
+  '三、待确认',
+  '1. 历史数据导出是否仍保留同步接口，需与运维确认。',
+  '2. 导出任务失败的重试次数尚未确定。',
+].join('\n');
+
+/**
+ * 补全一个已存在的演示项目：只创建缺失的部分，返回补了哪些内容。
+ * 用于项目已经存在但缺少契约、材料或主体的场景。
+ */
+async function completeDemo(projectId) {
+  const added = [];
+
+  // 主干
+  let items = await api.listTrunkItems({ project_id: projectId });
+  if (!Array.isArray(items) || items.length === 0) {
+    const seed = [
+      { kind: 'goal', statement: '让当前有效主干、判断依据与影响处置可见可操作。' },
+      { kind: 'scope', statement: '中心服务维护权威记录，客户端只与中心交互。' },
+      { kind: 'capability', statement: 'AI 只产出建议，不产生已生效状态。' },
+      { kind: 'interface', statement: '页面与接口统一使用 /sap-cloud/* 前缀。' },
+      { kind: 'data_contract', statement: '一期默认 SQLite，后续可接 PostgreSQL。' },
+    ];
+    for (const one of seed) {
+      const created = await api.createTrunkItem({ project_id: projectId, ...one, created_by: '演示' });
+      await api.confirmTrunkItem(created.item_id, { confirmed_by: '演示' });
+    }
+    items = await api.listTrunkItems({ project_id: projectId });
+    added.push('主干条目');
+  }
+
+  // 约定包
+  const packs = await api.listConventionPacks({ project_id: projectId });
+  if (!Array.isArray(packs) || packs.length === 0) {
+    const pack = await api.createConventionPack({
+      name: '演示：API 约定',
+      description: '团队偏好示例，可按项目改写。',
+      scope: 'project',
+      project_id: projectId,
+      created_by: '演示',
+      rules: DEMO_RULES,
+    });
+    await api.activateConventionPack(pack.pack_id, { activated_by: '演示', reason: '演示项目启用 API 约定' });
+    added.push('约定包');
+  }
+
+  // 编排模板
+  const templates = await api.listWorkflowTemplates({ project_id: projectId });
+  if (!Array.isArray(templates) || templates.length === 0) {
+    await api.seedWorkflowTemplates({ project_id: projectId, created_by: '演示' });
+    added.push('编排模板');
+  }
+
+  // 契约：没有就建 v1 并发布；只有一版就再发 v2，用来演示变更影响。
+  let artifacts = await api.listArtifacts({ project_id: projectId });
+  if (!Array.isArray(artifacts)) artifacts = [];
+  let firstContract = artifacts.find((one) => one.type === 'api_contract');
+  if (!firstContract) {
+    firstContract = await api.createArtifact({
+      project_id: projectId,
+      type: 'api_contract',
+      name: '演示订单 API',
+      created_by: '演示',
+      content: demoContract('1.0.0'),
+    });
+    await api.publishArtifact(firstContract.artifact_id, { published_by: '演示', reason: '演示契约首版' });
+    added.push('契约 v1');
+  }
+
+  // 材料
+  const materials = await api.listMaterials({ project_id: projectId });
+  if (!Array.isArray(materials) || materials.length === 0) {
+    await api.createMaterial({
+      project_id: projectId,
+      title: '演示会议纪要',
+      kind: 'meeting',
+      source_ref: 'demo://meeting/2026-11-19',
+      created_by: '演示',
+      content: DEMO_MEETING,
+    });
+    added.push('会议材料');
+  }
+
+  // 主体与成员
+  const actors = await api.listActors();
+  if (Array.isArray(actors) && actors.length === 0) {
+    const owner = await api.createActor({ type: 'human', display_name: '演示负责人', created_by: '演示' });
+    const reviewer = await api.createActor({ type: 'human', display_name: '演示评审者', created_by: '演示' });
+    const agent = await api.createActor({
+      type: 'agent',
+      display_name: '演示 Agent',
+      on_behalf_of: owner.actor_id,
+      project_id: projectId,
+      allowed_actions: ['claim', 'submit', 'report'],
+      created_by: '演示',
+    });
+    await api.setCapability(agent.actor_id, { key: 'backend', level: 'expert' });
+    await api.addMember(projectId, { actor_id: owner.actor_id, roles: ['owner', 'direction'], created_by: '演示' });
+    await api.addMember(projectId, { actor_id: reviewer.actor_id, roles: ['reviewer', 'contributor'], created_by: '演示' });
+    await api.addMember(projectId, { actor_id: agent.actor_id, roles: ['contributor'], created_by: '演示' });
+    added.push('主体与成员');
+  }
+
+  // 需求与任务链
+  let requirements = await api.listRequirements({ project_id: projectId });
+  if (!Array.isArray(requirements) || requirements.length === 0) {
+    const requirementSeed = [
+      { raw_text: '把页面与接口迁移到 /sap-cloud/*，旧路径重定向。', claimed_level: 'L2' },
+      { raw_text: '面板围绕主干、判断、执行与影响重构，而不是 CRUD 表格。', claimed_level: 'L2' },
+      { raw_text: '未来支持 PostgreSQL，保持 SQLite 可用。', claimed_level: 'L1' },
+    ];
+    const activeItem = items.find((one) => one.kind === 'interface') || items[0];
+    for (const one of requirementSeed) {
+      const created = await api.createRequirement({ project_id: projectId, author: '演示', ...one });
+      requirements.push(created);
+    }
+    const first = requirements[0].requirement_id;
+    await api.createAssessment(first, {
+      assessed_level: 'L1',
+      related_item_ids: [activeItem.item_id],
+      impact_summary: '页面与接口前缀会影响所有客户端和深链刷新。',
+      uncertainties: ['旧调用方是否仍依赖根路径'],
+      proposed_action: 'relevel',
+      assessor_type: 'human',
+      assessor_id: '演示架构师',
+    });
+    await api.createDecision(first, {
+      conclusion: 'relevelled',
+      final_level: 'L1',
+      reason: '统一 URL 属于公共接口约定，影响全部调用方。',
+      confirmed_by: '演示负责人',
+    });
+    const [demoTask] = await api.createRequirementTasks(first, {
+      created_by: '演示',
+      tasks: [{
+        purpose: '迁移路由与 API 前缀，旧路径返回迁移提示。',
+        scope: 'router、api 封装与测试。',
+        non_scope: '不改核心链状态机。',
+        done_when: ['新前缀下深链刷新可用', '旧根路径返回 308 或迁移提示'],
+        serves_item_ids: [activeItem.item_id],
+        acceptance_evidence: ['构建通过', '端到端脚本通过'],
+      }],
+    });
+    const c1 = await api.claimTask(demoTask.task_id, { worker_id: '演示开发者A' });
+    const s1 = await api.createSubmission(demoTask.task_id, {
+      claim_id: c1.claim.claim_id,
+      submitted_by: '演示开发者A',
+      commit_refs: [{ repo: 'SuperAgentPlusCloud', branch: 'master', hash: 'demo-first' }],
+      summary: '完成接口前缀迁移，但遗漏页面深链回落。',
+      self_test: '接口前缀测试通过，页面深链未覆盖。',
+      known_gaps: ['刷新项目深链返回 404'],
+      artifacts: [firstContract.artifact_id],
+    });
+    await api.createReview(s1.submission_id, {
+      reviewer_id: '演示评审者',
+      conclusion: 'reject',
+      reason: '未满足「新前缀下深链刷新可用」。',
+      criterion_results: [{ criterion: '新前缀下深链刷新可用', result: '未通过', evidence: '刷新返回 404' }],
+    });
+    const c2 = await api.claimTask(demoTask.task_id, { worker_id: '演示开发者B' });
+    const s2 = await api.createSubmission(demoTask.task_id, {
+      claim_id: c2.claim.claim_id,
+      submitted_by: '演示开发者B',
+      commit_refs: [{ repo: 'SuperAgentPlusCloud', branch: 'master', hash: 'demo-final' }],
+      summary: '补齐 SPA 深链回落并完成旧路径迁移提示。',
+      self_test: 'URL 契约测试全部通过。',
+      known_gaps: [],
+    });
+    await api.createReview(s2.submission_id, {
+      reviewer_id: '演示评审者',
+      conclusion: 'confirm',
+      reason: '两条完成条件均已满足。',
+      criterion_results: [
+        { criterion: '新前缀下深链刷新可用', result: '通过', evidence: 'URL 契约测试' },
+        { criterion: '旧根路径返回 308 或迁移提示', result: '通过', evidence: 'URL 契约测试' },
+      ],
+    });
+    added.push('需求与任务链');
+  }
+
+  // 主干变更与影响
+  const changes = await api.listTrunkChanges({ project_id: projectId });
+  if (!Array.isArray(changes) || changes.length === 0) {
+    const oldItem = items[1] || items[0];
+    const change = await api.createTrunkChange({
+      project_id: projectId,
+      reason: '从 CRUD 面板改为围绕主干与影响的工作台。',
+      old_item_ids: [oldItem.item_id],
+      proposed_items: [{ kind: 'capability', statement: '面板以主干、判断、执行与影响组织，而非 CRUD 表格。' }],
+      impact_assessment: '影响面板全部视图与导航分组，需要逐页确认。',
+      created_by: '演示',
+    });
+    await api.confirmTrunkChange(change.change_id, { confirmed_by: '演示' });
+    await api.activateTrunkChange(change.change_id, { confirmed_by: '演示' });
+    const tasks = await api.listTasks({ project_id: projectId });
+    const target = (tasks || [])[0];
+    if (target) {
+      await api.addImpactItem(change.change_id, {
+        target_type: 'task',
+        target_id: target.task_id,
+        owner_id: '演示',
+      });
+    }
+    added.push('主干变更');
+  }
+
+  // 契约 v2：演示「契约变了会生成待检查影响」
+  artifacts = await api.listArtifacts({ project_id: projectId });
+  const contractVersions = (artifacts || []).filter((one) => one.type === 'api_contract');
+  if (contractVersions.length === 1 && firstContract?.status === 'published') {
+    const v2 = await api.createArtifact({
+      project_id: projectId,
+      type: 'api_contract',
+      name: '演示订单 API',
+      created_by: '演示',
+      content: demoContract('1.1.0', true),
+    });
+    await api.publishArtifact(v2.artifact_id, { published_by: '演示', reason: '新增订单详情接口' });
+    const impacts = await api.listArtifactImpacts(v2.artifact_id);
+    if (!Array.isArray(impacts) || impacts.length === 0) {
+      const tasks = await api.listTasks({ project_id: projectId });
+      if (Array.isArray(tasks) && tasks[0]) {
+        await api.addArtifactImpact(v2.artifact_id, {
+          target_type: 'task',
+          target_id: tasks[0].task_id,
+          owner_id: '演示',
+          reason: '契约新增订单详情接口，需确认该任务是否受影响。',
+        });
+      }
+    }
+    added.push('契约 v2 与变更影响');
+  }
+
+  return added;
+}
+
+
 async function createDemo() {
   creatingDemo.value = true;
   let projectId = '';
@@ -134,6 +427,19 @@ async function createDemo() {
     ElMessage.error(`演示项目在第 ${step} 步失败：${detail}。已创建的内容保留。`);
   };
   try {
+    // 已存在演示项目时走补全路径，避免再造一份同名项目。
+    const existingProjects = await api.listProjects();
+    const existingDemo = (existingProjects || []).find((one) => one.name === DEMO_PROJECT_NAME);
+    if (existingDemo) {
+      const added = await completeDemo(existingDemo.project_id);
+      ElMessage.success(added.length
+        ? `演示项目已补全：${added.join('、')}`
+        : '演示项目已完整，无需补全。');
+      await load();
+      go(router, 'dashboard', { id: existingDemo.project_id });
+      return;
+    }
+
     const project = await api.createProject({
       name: 'SuperAgentPlusCloud（演示）',
       purpose: '把项目当前有效的决定与影响范围保留下来，让约定变化可追踪。',
