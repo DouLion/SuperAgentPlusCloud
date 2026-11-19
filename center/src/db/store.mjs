@@ -266,6 +266,8 @@ export function migrate(db = openStore()) {
   ensureDefinitionEventTypes(db);
   ensureClaimLeaseColumns(db);
   ensureImpactSourceColumns(db);
+  // 依赖 source_type/source_id 的索引必须在补列之后创建，否则旧库会因缺列启动失败。
+  db.exec('CREATE INDEX IF NOT EXISTS idx_impact_items_source ON impact_items (source_type, source_id)');
   ensureColumn(db, 'command_ledger', 'replay_count', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'actors', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'submissions', 'external_fact_ids', "TEXT NOT NULL DEFAULT '[]'");

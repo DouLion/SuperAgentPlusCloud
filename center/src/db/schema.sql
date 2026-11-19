@@ -247,8 +247,6 @@ CREATE INDEX IF NOT EXISTS idx_impact_items_change
   ON impact_items (change_id);
 CREATE INDEX IF NOT EXISTS idx_impact_items_assessment
   ON impact_items (assessment_status);
-CREATE INDEX IF NOT EXISTS idx_impact_items_source
-  ON impact_items (source_type, source_id);
 
 -- 事件与审计 --------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS events (
