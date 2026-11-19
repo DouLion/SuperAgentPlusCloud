@@ -1,4 +1,4 @@
-﻿// Center 任务与认领存储（T7 归置）。
+// Center 任务与认领存储（T7 归置）。
 
 import { appendEvent } from './events.mjs';
 import { TASK_STATUSES } from './enums.mjs';
@@ -19,8 +19,8 @@ import {
 const INSERT_TASK = `INSERT INTO tasks (
   task_id, project_id, requirement_id, serves_item_ids, related_question_id,
   purpose, scope, non_scope, done_when, acceptance_evidence, blocked_by,
-  status, created_by, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  status, role_hint, created_by, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 function parseTask(row) {
   if (!row) return null;
@@ -95,6 +95,7 @@ export function createTask(db, input = {}) {
     jsonField(input, 'acceptance_evidence'),
     jsonField(input, 'blocked_by'),
     status,
+    pick(input, 'role_hint', 'roleHint') ?? null,
     createdBy,
     now,
   );

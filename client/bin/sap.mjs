@@ -30,6 +30,7 @@ import { run as runOutbox } from '../src/commands/outbox.mjs';
 import { run as runAgent } from '../src/commands/agent.mjs';
 import { run as runCaps } from '../src/commands/caps.mjs';
 import { run as runCandidates } from '../src/commands/candidates.mjs';
+import { run as runObserve } from '../src/commands/observe.mjs';
 
 /** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
 function extractToken(argv) {
@@ -83,6 +84,7 @@ const handlers = new Map([
   ['agent', runAgent],
   ['caps', runCaps],
   ['candidates', runCandidates],
+  ['observe', runObserve],
 ]);
 
 function main(argv) {

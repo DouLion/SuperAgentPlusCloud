@@ -206,6 +206,12 @@ export const PLANNED_COMMANDS = [
     desc: 'P4 候选主体推荐：按编排节点的 role_hint 匹配能力',
     implemented: true,
   },
+  {
+    name: 'observe',
+    usage: 'sap observe actors ｜ stuck [--project <id>] ｜ stats [--project <id>]',
+    desc: 'P5 观测：主体在线状态、卡住任务、流水线指标',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {

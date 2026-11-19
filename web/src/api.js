@@ -96,6 +96,34 @@ export const api = {
   releaseTask: (id, input) =>
     request('POST', `/tasks/${encodeURIComponent(id)}/release`, input),
   listClaims: (id) => request('GET', `/tasks/${encodeURIComponent(id)}/claims`),
+  heartbeatClaim: (claimId, input) =>
+    request('POST', `/claims/${encodeURIComponent(claimId)}/heartbeat`, input),
+  releaseClaim: (claimId, input) =>
+    request('POST', `/claims/${encodeURIComponent(claimId)}/release`, input),
+  getTaskContext: (id) => request('GET', `/tasks/${encodeURIComponent(id)}/context`),
+  listTaskCandidates: (id) => request('GET', `/tasks/${encodeURIComponent(id)}/candidates`),
+
+  // 身份与能力（P1/P4）
+  listActors: (query) => request('GET', `/actors${queryString(query)}`),
+  createActor: (input) => request('POST', '/actors', input),
+  getActor: (id) => request('GET', `/actors/${encodeURIComponent(id)}`),
+  disableActor: (id, input) => request('POST', `/actors/${encodeURIComponent(id)}/disable`, input),
+  issueCredential: (id, input) =>
+    request('POST', `/actors/${encodeURIComponent(id)}/credentials`, input),
+  revokeCredential: (id, input) =>
+    request('DELETE', `/credentials/${encodeURIComponent(id)}`, input),
+  listDelegations: (query) => request('GET', `/delegations${queryString(query)}`),
+  createDelegation: (input) => request('POST', '/delegations', input),
+  revokeDelegation: (id, input) =>
+    request('POST', `/delegations/${encodeURIComponent(id)}/revoke`, input),
+  listCapabilities: (id) => request('GET', `/actors/${encodeURIComponent(id)}/capabilities`),
+  setCapability: (id, input) =>
+    request('PUT', `/actors/${encodeURIComponent(id)}/capabilities`, input),
+
+  // 观测（P5）
+  observabilityActors: () => request('GET', '/observability/actors'),
+  observabilityStuck: (query) => request('GET', `/observability/stuck${queryString(query)}`),
+  observabilityStats: (query) => request('GET', `/observability/stats${queryString(query)}`),
   listSubmissions: (taskId) =>
     request('GET', `/tasks/${encodeURIComponent(taskId)}/submissions`),
   createSubmission: (taskId, input) =>

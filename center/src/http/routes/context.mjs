@@ -1,4 +1,4 @@
-// 上下文与候选路由（P4）：任务上下文快照、按编排来源推断角色的候选人推荐�?
+// 上下文与候选路由（P4）：任务上下文快照、按编排来源推断角色的候选人推荐。
 import { listAiSuggestions } from '../../db/ai.mjs';
 import { activeDelegationFor } from '../../db/actors.mjs';
 import { matchActors } from '../../db/capabilities.mjs';
@@ -7,7 +7,7 @@ import { getWorkflowTemplate } from '../../db/workflows.mjs';
 import { bearerToken, resolveRequestActor } from '../../auth/policy.mjs';
 import { buildTaskContext } from '../../context/bundle.mjs';
 
-/** 解析可选主体：�?token 返回 null（上下文降级），带无�?token 则拒绝�?*/
+/** 解析可选主体：无 token 返回 null（上下文降级）；带无效 token 则拒绝。 */
 function optionalActor(db, req) {
   const token = bearerToken(req);
   if (!token) return { actor: null, delegation: null };
@@ -19,7 +19,9 @@ function optionalActor(db, req) {
 }
 
 /**
- * 从任务的编排建议推断模板节点�? * 只有「被采纳�?contract_orchestration 建议」能提供 node_key，避免猜测�? */
+ * 从任务的编排建议推断模板节点。
+ * 只有「被采纳的 contract_orchestration 建议」能提供 node_key，避免猜测。
+ */
 function resolveTaskNode(db, task) {
   if (!task.requirement_id) return { reason: '任务没有关联需求，无法推断编排节点' };
   const suggestions = listAiSuggestions(db, {
@@ -63,16 +65,25 @@ export const ROUTES = [
       if (!task) return { status: 404, body: { ok: false, error: `任务不存在：${params.id}` } };
 
       const resolved = resolveTaskNode(db, task);
-      if (!resolved.node) {
-        return { candidates: [], reason: resolved.reason };
+      const explicitHint = task.role_hint ?? null;
+      const roleHint = explicitHint ?? resolved.node?.role_hint ?? null;
+      if (!roleHint) {
+        return {
+          task_id: task.task_id,
+          node_key: null,
+          role_hint: null,
+          source: 'none',
+          candidates: [],
+          reason: resolved.reason ?? '任务没有 role_hint，也没有可推断的编排节点',
+        };
       }
 
-      const roleHint = resolved.node.role_hint ?? null;
       const candidates = matchActors(db, { project_id: task.project_id, role_hint: roleHint });
       return {
         task_id: task.task_id,
-        node_key: resolved.nodeKey,
+        node_key: explicitHint ? null : (resolved.nodeKey ?? null),
         role_hint: roleHint,
+        source: explicitHint ? 'task' : 'workflow',
         candidates,
         note: '候选只用于推荐，领取仍需自行认领并由策略校验',
       };

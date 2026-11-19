@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS tasks (
                                          'rework', 'accepted', 'closed',
                                          'cancelled')),
   revision             INTEGER NOT NULL DEFAULT 1,
+  role_hint            TEXT,
   created_by           TEXT,
   created_at           TEXT NOT NULL
 );
@@ -450,6 +451,7 @@ CREATE TABLE IF NOT EXISTS command_ledger (
   response_body   TEXT NOT NULL,
   content_type    TEXT NOT NULL DEFAULT 'application/json; charset=utf-8',
   response_headers TEXT NOT NULL DEFAULT '{}',
+  replay_count    INTEGER NOT NULL DEFAULT 0,
   created_at      TEXT NOT NULL
 );
 

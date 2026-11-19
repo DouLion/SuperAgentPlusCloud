@@ -23,6 +23,7 @@ import { ROUTES as PROTOCOL_ROUTES } from './routes/protocol.mjs';
 import { ROUTES as AGENT_ROUTES } from './routes/agent.mjs';
 import { ROUTES as CONTEXT_ROUTES } from './routes/context.mjs';
 import { ROUTES as CAPABILITY_ROUTES } from './routes/capabilities.mjs';
+import { ROUTES as OBSERVABILITY_ROUTES } from './routes/observability.mjs';
 import {
   CURRENT_PROTOCOL_VERSION,
   PROTOCOL_VERSION_HEADER,
@@ -38,6 +39,7 @@ import {
   isReplayable,
   isWriteMethod,
   payloadDigest,
+  recordReplay,
   releaseCommand,
   reserveCommand,
 } from '../protocol/idempotency.mjs';
@@ -115,6 +117,7 @@ export const ROUTES = [
   ...AGENT_ROUTES,
   ...CONTEXT_ROUTES,
   ...CAPABILITY_ROUTES,
+  ...OBSERVABILITY_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */
@@ -345,8 +348,13 @@ function sendResponse(res, response, method) {
 }
 
 /** 回放账本里记录的首次结果。 */
-function sendRecorded(res, row) {
+function sendRecorded(db, res, row) {
   res.setHeader(REPLAY_HEADER, '1');
+  try {
+    recordReplay(db, row.command_id);
+  } catch {
+    // 回放计数失败不影响回放本身；观测指标允许低估。
+  }
   let headers = {};
   try {
     headers = JSON.parse(row.response_headers || '{}');
@@ -406,7 +414,7 @@ async function handleApiRequest(req, res, routes, db, url, pathForMessage) {
     if (existing) {
       if (existing.payload_digest !== digest) throw idempotencyConflict(cmdId);
       if (isReplayable(existing)) {
-        sendRecorded(res, existing);
+        sendRecorded(db, res, existing);
         return true;
       }
       // 上次执行未完成（崩溃或超时）：释放预占后重新执行。

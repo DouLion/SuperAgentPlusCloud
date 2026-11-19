@@ -112,6 +112,12 @@ export function isReplayable(row) {
   return Boolean(row) && Number(row.status_code) > 0;
 }
 
+/** 记录一次幂等回放（同键同摘要再次命中）。 */
+export function recordReplay(db, commandIdValue) {
+  db.prepare('UPDATE command_ledger SET replay_count = COALESCE(replay_count, 0) + 1 WHERE command_id = ?')
+    .run(commandIdValue);
+}
+
 /** 冲突错误。 */
 export function idempotencyConflict(commandIdValue) {
   return codedError(

@@ -194,12 +194,14 @@ export function migrate(db = openStore()) {
   ensureColumn(db, 'requirements', 'final_level', 'TEXT');
   ensureColumn(db, 'trunk_changes', 'policy_ref', 'TEXT');
   ensureColumn(db, 'tasks', 'revision', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn(db, 'tasks', 'role_hint', 'TEXT');
   for (const [table, column] of ACTOR_TYPE_COLUMNS) {
     ensureColumn(db, table, column, 'TEXT');
   }
   ensureContractOrchestrationSuggestionKind(db);
   ensureDefinitionEventTypes(db);
   ensureClaimLeaseColumns(db);
+  ensureColumn(db, 'command_ledger', 'replay_count', 'INTEGER NOT NULL DEFAULT 0');
   return db;
 }
 

@@ -385,6 +385,14 @@ export const api = {
   listTaskCandidates: (taskId, options) =>
     apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/candidates`, undefined, options),
 
+  // 观测（P5）：只读，不改变业务状态。
+  observabilityActors: (options) =>
+    apiRequest('GET', '/observability/actors', undefined, options),
+  observabilityStuck: (query, options) =>
+    apiRequest('GET', `/observability/stuck${queryString(query)}`, undefined, options),
+  observabilityStats: (query, options) =>
+    apiRequest('GET', `/observability/stats${queryString(query)}`, undefined, options),
+
   // Agent 接入（P4）：拉取为主，claim/heartbeat/deliver/release。
   agentInbox: (query, options) =>
     apiRequest('GET', `/agent/inbox${queryString(query)}`, undefined, options),
