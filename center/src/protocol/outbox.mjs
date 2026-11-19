@@ -1,6 +1,7 @@
 // 事件投递（P3）：至少一次投递 + 消费端按 event_id 去重。
 // 本轮没有外部订阅者，dispatch 的默认投递器是空操作（标记已投递）。
 
+import { createHmac } from 'node:crypto';
 import { decodeJson, encodeJson, newId, nowIso } from '../db/json.mjs';
 
 /** 入队一条待投递事件。 */
@@ -87,18 +88,25 @@ export function markFailed(db, eventId, error, retryDelaySeconds = 30) {
 
 /**
  * 派发一批待投递事件。
+ * - 无订阅时保持原行为：直接标记已投递（便于本地无消费者时推进队列）。
+ * - 有订阅时按 topic 匹配，逐个 POST；任一订阅失败即视为该事件失败并退避。
  * @param {object} db
- * @param {{limit?: number, deliverer?: (item: object) => any}} [options]
- * @returns {{delivered: number, failed: number, items: object[]}}
+ * @param {{limit?: number, deliverer?: (item: object) => any, fetchImpl?: Function, timeoutMs?: number}} [options]
+ * @returns {Promise<{delivered: number, failed: number, items: object[], subscriptions: number}>}
  */
-export function dispatchOutbox(db, options = {}) {
+export async function dispatchOutbox(db, options = {}) {
   const items = listPending(db, options.limit ?? 50);
-  const deliverer = options.deliverer ?? (() => true);
+  const subs = listSubscriptions(db).filter((row) => !row.disabled_at);
+  const deliverer = options.deliverer
+    ?? (subs.length
+      ? (item) => deliverToSubscriptions(db, item, subs, options)
+      : () => true);
+
   let delivered = 0;
   let failed = 0;
   for (const item of items) {
     try {
-      deliverer(item);
+      await deliverer(item);
       markDelivered(db, item.event_id);
       delivered += 1;
     } catch (error) {
@@ -106,5 +114,102 @@ export function dispatchOutbox(db, options = {}) {
       failed += 1;
     }
   }
-  return { delivered, failed, items };
+  return { delivered, failed, items, subscriptions: subs.length };
+}
+
+// ---------------------------------------------------------------- 订阅
+
+function parseSubscription(row) {
+  if (!row) return null;
+  return { ...row, topics: decodeJson(row.topics, []) };
+}
+
+/** 新建订阅；topics 为空表示订阅全部。 */
+export function createSubscription(db, input = {}) {
+  const url = input.url;
+  if (typeof url !== 'string' || !/^https?:\/\//.test(url)) {
+    throw Object.assign(new Error('url 必须是 http(s) 地址'), { code: 'SUBSCRIPTION_URL_INVALID', status: 400 });
+  }
+  const topics = Array.isArray(input.topics) ? input.topics.filter((t) => typeof t === 'string' && t.trim()) : [];
+  const subscriptionId = input.subscription_id ?? input.subscriptionId ?? newId('sub');
+  db.prepare(`INSERT INTO outbox_subscriptions (subscription_id, url, topics, secret, created_at, disabled_at)
+    VALUES (?, ?, ?, ?, ?, NULL)`).run(
+    subscriptionId, url, encodeJson(topics), input.secret ?? null, nowIso(),
+  );
+  return getSubscription(db, subscriptionId);
+}
+
+export function getSubscription(db, id) {
+  return parseSubscription(db.prepare('SELECT * FROM outbox_subscriptions WHERE subscription_id = ?').get(id));
+}
+
+export function listSubscriptions(db, query = {}) {
+  const includeDisabled = query.include_disabled === true || query.includeDisabled === true;
+  const where = includeDisabled ? '' : 'WHERE disabled_at IS NULL';
+  return db.prepare(`SELECT * FROM outbox_subscriptions ${where}
+    ORDER BY created_at ASC, subscription_id ASC`).all().map(parseSubscription);
+}
+
+/** 停用订阅（软删除，保留历史）。 */
+export function disableSubscription(db, id) {
+  const existing = getSubscription(db, id);
+  if (!existing) {
+    throw Object.assign(new Error(`订阅不存在：${id}`), { status: 404, code: 'SUBSCRIPTION_NOT_FOUND' });
+  }
+  if (!existing.disabled_at) {
+    db.prepare('UPDATE outbox_subscriptions SET disabled_at = ? WHERE subscription_id = ?')
+      .run(nowIso(), id);
+  }
+  return getSubscription(db, id);
+}
+
+/** topic 是否被订阅匹配；空 topics 视为订阅全部。 */
+export function subscriptionMatches(subscription, topic) {
+  if (!subscription || subscription.disabled_at) return false;
+  const topics = subscription.topics || [];
+  return topics.length === 0 || topics.includes(topic);
+}
+
+/** HMAC-SHA256 签名头；没有 secret 时不签名。 */
+export function signatureOf(body, secret) {
+  if (!secret) return null;
+  return `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+}
+
+/**
+ * 把一条事件投递给所有匹配订阅。任一订阅非 2xx 即抛错，交给调度器退避重试。
+ */
+export async function deliverToSubscriptions(db, item, subscriptions, options = {}) {
+  const targets = (subscriptions ?? listSubscriptions(db)).filter((sub) => subscriptionMatches(sub, item.topic));
+  if (!targets.length) return { delivered: 0, skipped: true };
+
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const timeoutMs = Math.min(Math.max(Number(options.timeoutMs) || 5000, 100), 30000);
+  const body = JSON.stringify({ topic: item.topic, event_id: item.event_id, payload: item.payload });
+
+  let delivered = 0;
+  for (const sub of targets) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const headers = { 'content-type': 'application/json', 'x-sap-event': item.topic };
+      const signature = signatureOf(body, sub.secret);
+      if (signature) headers['x-sap-signature'] = signature;
+      const response = await fetchImpl(sub.url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(`订阅 ${sub.subscription_id} 返回 ${response.status}`);
+      }
+      delivered += 1;
+    } catch (error) {
+      throw new Error(`投递到 ${sub.url} 失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return { delivered };
 }

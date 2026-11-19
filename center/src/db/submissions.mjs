@@ -6,6 +6,7 @@ import { notifyReviewRequested } from '../notify/notifier.mjs';
 import { REVIEW_CONCLUSIONS } from './enums.mjs';
 import { assertClaimValid, activeOwnerClaim } from './claims.mjs';
 import { getTask } from './tasks.mjs';
+import { factsByIds, summarizeFact } from './facts.mjs';
 import {
   decodeJson,
   encodeJson,
@@ -18,8 +19,8 @@ import {
 
 const INSERT_SUBMISSION = `INSERT INTO submissions (
   submission_id, task_id, claim_id, commit_refs, summary, self_test,
-  known_gaps, artifacts, submitted_by, submitted_at, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  known_gaps, artifacts, external_fact_ids, submitted_by, submitted_at, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 function parseSubmission(row) {
   if (!row) return null;
@@ -28,6 +29,7 @@ function parseSubmission(row) {
     commit_refs: decodeJson(row.commit_refs, []),
     known_gaps: decodeJson(row.known_gaps, []),
     artifacts: decodeJson(row.artifacts, []),
+    external_fact_ids: decodeJson(row.external_fact_ids, []),
   };
 }
 
@@ -107,6 +109,29 @@ export function createSubmission(db, input = {}) {
 
     const isOwner = (claim.role ?? 'owner') === 'owner';
     const now = pick(input, 'submitted_at', 'submittedAt') ?? nowIso();
+
+    // 外部事实只是证据：必须存在且属于同一项目，否则拒绝引用。
+    const factIds = [...new Set((pick(input, 'external_fact_ids', 'externalFactIds') ?? [])
+      .filter((id) => typeof id === 'string' && id.trim()))];
+    if (factIds.length) {
+      const facts = factsByIds(db, factIds);
+      const found = new Set(facts.map((fact) => fact.fact_id));
+      const missing = factIds.filter((id) => !found.has(id));
+      if (missing.length) {
+        throw Object.assign(new Error(`事实不存在：${missing.join(', ')}`), {
+          code: 'FACT_NOT_FOUND',
+          status: 400,
+        });
+      }
+      const foreign = facts.filter((fact) => fact.project_id !== task.project_id);
+      if (foreign.length) {
+        throw Object.assign(
+          new Error(`事实不属于任务所在项目：${foreign.map((fact) => fact.fact_id).join(', ')}`),
+          { code: 'FACT_PROJECT_MISMATCH', status: 400 },
+        );
+      }
+    }
+
     db.prepare(INSERT_SUBMISSION).run(
       submissionId,
       taskId,
@@ -116,6 +141,7 @@ export function createSubmission(db, input = {}) {
       pick(input, 'self_test', 'selfTest'),
       jsonField(input, 'known_gaps'),
       jsonField(input, 'artifacts'),
+      encodeJson(factIds),
       isOwner ? submittedBy : `${submittedBy} (collaborator)`,
       now,
       pick(input, 'created_at', 'createdAt') ?? now,
@@ -155,11 +181,14 @@ export function createSubmission(db, input = {}) {
   }
 }
 
-/** 按 ID 查询提交；不存在返回 null。 */
+/** 按 ID 查询提交；不存在返回 null。附带外部事实摘要，便于核对证据来源。 */
 export function getSubmission(db, submissionId) {
-  return parseSubmission(
+  const submission = parseSubmission(
     db.prepare('SELECT * FROM submissions WHERE submission_id = ?').get(submissionId),
   );
+  if (!submission) return null;
+  const facts = factsByIds(db, submission.external_fact_ids).map(summarizeFact);
+  return { ...submission, external_facts: facts };
 }
 
 /** 列出提交，可按 task_id 过滤，按提交时间升序。 */

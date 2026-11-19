@@ -34,6 +34,9 @@ import { run as runObserve } from '../src/commands/observe.mjs';
 import { run as runMaterial } from '../src/commands/material.mjs';
 import { run as runNotify } from '../src/commands/notify.mjs';
 import { run as runAdmin } from '../src/commands/admin.mjs';
+import { run as runFact } from '../src/commands/fact.mjs';
+import { run as runTask } from '../src/commands/task.mjs';
+import { run as runSubscribe } from '../src/commands/subscribe.mjs';
 
 /** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
 function extractToken(argv) {
@@ -91,6 +94,9 @@ const handlers = new Map([
   ['material', runMaterial],
   ['notify', runNotify],
   ['admin', runAdmin],
+  ['fact', runFact],
+  ['task', runTask],
+  ['subscribe', runSubscribe],
 ]);
 
 function main(argv) {

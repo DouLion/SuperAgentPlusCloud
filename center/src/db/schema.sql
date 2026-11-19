@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   self_test      TEXT,
   known_gaps     TEXT NOT NULL DEFAULT '[]',
   artifacts      TEXT NOT NULL DEFAULT '[]',
+  external_fact_ids TEXT NOT NULL DEFAULT '[]',
   submitted_by   TEXT,
   submitted_at   TEXT NOT NULL,
   created_at     TEXT NOT NULL
@@ -552,6 +553,44 @@ CREATE TABLE IF NOT EXISTS notification_prefs (
   kind     TEXT NOT NULL,
   enabled  INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (actor_id, kind)
+);
+
+
+-- 外部工具只读事实（G 枝）------------------------------------------------------
+-- 外部事实只是证据：可以引用、可以关联到任务，但不改变任何业务状态。
+CREATE TABLE IF NOT EXISTS external_facts (
+  fact_id     TEXT PRIMARY KEY,
+  project_id  TEXT NOT NULL REFERENCES projects (project_id),
+  source      TEXT NOT NULL CHECK (source IN ('git', 'ci', 'issue', 'chat', 'other')),
+  kind        TEXT NOT NULL CHECK (kind IN ('commit', 'build', 'test_run', 'issue', 'message')),
+  external_id TEXT NOT NULL,
+  payload     TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  actor_id    TEXT,
+  dedupe_key  TEXT NOT NULL UNIQUE,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_external_facts_project ON external_facts (project_id, source);
+CREATE INDEX IF NOT EXISTS idx_external_facts_kind ON external_facts (kind);
+
+CREATE TABLE IF NOT EXISTS task_fact_links (
+  task_id   TEXT NOT NULL REFERENCES tasks (task_id),
+  fact_id   TEXT NOT NULL REFERENCES external_facts (fact_id),
+  linked_by TEXT,
+  linked_at TEXT NOT NULL,
+  PRIMARY KEY (task_id, fact_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_fact_links_fact ON task_fact_links (fact_id);
+
+CREATE TABLE IF NOT EXISTS outbox_subscriptions (
+  subscription_id TEXT PRIMARY KEY,
+  url             TEXT NOT NULL,
+  topics          TEXT NOT NULL DEFAULT '[]',
+  secret          TEXT,
+  created_at      TEXT NOT NULL,
+  disabled_at     TEXT
 );
 
 

@@ -38,6 +38,9 @@ export const IMPLEMENTED_COMMANDS = [
   'material',
   'notify',
   'admin',
+  'fact',
+  'task',
+  'subscribe',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -234,6 +237,24 @@ export const PLANNED_COMMANDS = [
     desc: 'E 枝运行可靠性：数据库备份、备份校验与健康检查',
     implemented: true,
   },
+  {
+    name: 'fact',
+    usage: 'sap fact add --project <id> --source git|ci|issue|chat|other --kind commit|build|test_run|issue|message --external-id <id> --file payload.json ｜ list ｜ show --fact <id>',
+    desc: 'G 枝外部事实：只读证据，可引用到提交与任务，不改变任务状态',
+    implemented: true,
+  },
+  {
+    name: 'task',
+    usage: 'sap task link-facts --task <id> --fact <fact_id> [--fact ...] ｜ facts --task <id>',
+    desc: 'G 枝：把外部事实关联到任务，只记关联不改状态',
+    implemented: true,
+  },
+  {
+    name: 'subscribe',
+    usage: 'sap subscribe add --url <http(s)> [--topic <t> ...] [--secret <密钥>] ｜ list ｜ remove --id <id>',
+    desc: 'G 枝 outbox webhook 订阅：按 topic 投递，可 HMAC 签名',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -252,6 +273,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：E 枝通知与运行可靠性 —— 站内提醒、通知偏好、备份与健康检查。',
+    '当前进度：G 枝外部工具只读适配 —— Git/CI 事实摄入口、任务事实关联、outbox 订阅投递。',
   ].join('\n');
 }

@@ -436,4 +436,22 @@ export const api = {
   verifyBackup: (query, options) =>
     apiRequest('GET', `/admin/backup/verify${queryString(query)}`, undefined, options),
   adminHealth: (options) => apiRequest('GET', '/admin/health', undefined, options),
+
+  // 外部工具只读适配（G 枝）：事实只作证据，不改变任务状态。
+  createFact: (source, input, options) =>
+    apiRequest('POST', `/integrations/${encodeURIComponent(source)}/facts`, input, options),
+  listFacts: (query, options) =>
+    apiRequest('GET', `/integrations/facts${queryString(query)}`, undefined, options),
+  getFact: (factId, options) =>
+    apiRequest('GET', `/integrations/facts/${encodeURIComponent(factId)}`, undefined, options),
+  linkTaskFacts: (taskId, input, options) =>
+    apiRequest('POST', `/tasks/${encodeURIComponent(taskId)}/link-facts`, input, options),
+  listTaskFacts: (taskId, options) =>
+    apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/facts`, undefined, options),
+  createSubscription: (input, options) =>
+    apiRequest('POST', '/outbox/subscriptions', input, options),
+  listSubscriptions: (query, options) =>
+    apiRequest('GET', `/outbox/subscriptions${queryString(query)}`, undefined, options),
+  deleteSubscription: (subscriptionId, options) =>
+    apiRequest('DELETE', `/outbox/subscriptions/${encodeURIComponent(subscriptionId)}`, undefined, options),
 };

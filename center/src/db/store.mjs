@@ -17,8 +17,11 @@ export const DEFAULT_DB_PATH = path.join(PACKAGE_ROOT, 'data', 'center.db');
 const TABLES = [
   'notification_prefs',
   'notifications',
+  'outbox_subscriptions',
   'outbox',
   'command_ledger',
+  'task_fact_links',
+  'external_facts',
   'material_extractions',
   'materials',
   'actor_capabilities',
@@ -265,6 +268,7 @@ export function migrate(db = openStore()) {
   ensureImpactSourceColumns(db);
   ensureColumn(db, 'command_ledger', 'replay_count', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'actors', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'submissions', 'external_fact_ids', "TEXT NOT NULL DEFAULT '[]'");
   return db;
 }
 

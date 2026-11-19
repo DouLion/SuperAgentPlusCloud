@@ -1,7 +1,13 @@
-// 协议层 HTTP 路由（P3）：未知结果查询与 outbox 管理。
+// 协议层 HTTP 路由（P3）：未知结果查询、outbox 管理与订阅（G 枝扩展投递）。
 
 import { commandResult } from '../../protocol/idempotency.mjs';
-import { dispatchOutbox, listOutbox } from '../../protocol/outbox.mjs';
+import {
+  createSubscription,
+  disableSubscription,
+  dispatchOutbox,
+  listOutbox,
+  listSubscriptions,
+} from '../../protocol/outbox.mjs';
 
 export const ROUTES = [
   {
@@ -29,13 +35,33 @@ export const ROUTES = [
   {
     method: 'POST',
     pattern: '/outbox/dispatch',
-    handler: ({ db, body }) => {
-      const result = dispatchOutbox(db, { limit: body?.limit });
+    handler: async ({ db, body }) => {
+      const result = await dispatchOutbox(db, { limit: body?.limit });
       return {
         delivered: result.delivered,
         failed: result.failed,
-        note: '当前没有外部订阅者，投递器为空操作，仅标记已投递',
+        subscriptions: result.subscriptions,
+        note: result.subscriptions
+          ? '已按订阅投递；失败项会退避重试'
+          : '当前没有外部订阅者，投递器为空操作，仅标记已投递',
       };
     },
+  },
+  {
+    method: 'POST',
+    pattern: '/outbox/subscriptions',
+    handler: ({ db, body }) => ({ status: 201, body: createSubscription(db, body) }),
+  },
+  {
+    method: 'GET',
+    pattern: '/outbox/subscriptions',
+    handler: ({ db, url }) => listSubscriptions(db, {
+      include_disabled: url.searchParams.get('include_disabled') === 'true',
+    }),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/outbox/subscriptions/:id',
+    handler: ({ db, params }) => disableSubscription(db, params.id),
   },
 ];
