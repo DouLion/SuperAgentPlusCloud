@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from './api.js';
 import { appState, refreshAiHealth } from './appState.js';
-import { projectNavGroups, go } from './nav.js';
+import { projectNavGroups, globalNavGroups, go } from './nav.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,10 +27,13 @@ const navGroups = computed(() => {
   return projectNavGroups(id);
 });
 
+const runGroups = computed(() => globalNavGroups());
+
 /** 当前项目下哪个分组被点亮。 */
 const activeMenu = computed(() => {
   const { path } = route;
   if (path === '/projects') return 'projects';
+  if (path === '/agents') return 'agents';
   if (path === '/settings') return 'settings';
   if (path === '/setup') return 'setup';
   if (path.startsWith('/project/')) {
@@ -43,7 +46,7 @@ const activeMenu = computed(() => {
 });
 
 function onMenuSelect(index) {
-  if (index === 'projects' || index === 'settings') {
+  if (index === 'projects' || index === 'settings' || index === 'agents') {
     router.push({ name: index });
     return;
   }
@@ -136,6 +139,19 @@ function enterProject(id) {
               v-for="item in group.items"
               :key="item.name"
               :index="`${item.name}:${item.id}`"
+            >
+              <el-icon><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.title }}</template>
+            </el-menu-item>
+          </el-menu-item-group>
+        </template>
+
+        <template v-for="group in runGroups" :key="group.title">
+          <el-menu-item-group :title="collapsed ? '' : group.title">
+            <el-menu-item
+              v-for="item in group.items"
+              :key="item.name"
+              :index="item.name"
             >
               <el-icon><component :is="item.icon" /></el-icon>
               <template #title>{{ item.title }}</template>

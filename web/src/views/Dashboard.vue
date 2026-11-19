@@ -22,6 +22,8 @@ const changes = ref([]);
 const events = ref([]);
 const impactMap = ref({});
 const impactLoading = ref(false);
+const onlineActors = ref([]);
+const stuckItems = ref([]);
 
 const JUDGE_REQUIREMENT_STATUSES = ['submitted', 'needs_info', 'assessed'];
 const RUNNING_TASK_STATUSES = ['open', 'claimed', 'rework'];
@@ -162,6 +164,15 @@ async function load() {
     events.value = eventRows;
     await Promise.all(changeRows.filter((change) => change.status !== 'closed')
       .map((change) => loadImpacts(change.change_id)));
+
+    const [actorResult, stuckResult] = await Promise.all([
+      api.observabilityActors().catch(() => ({ actors: [] })),
+      api.observabilityStuck({ project_id: projectId }).catch(() => ({ items: [] })),
+    ]);
+    onlineActors.value = (actorResult.actors || [])
+      .filter((actor) => actor.presence === 'online')
+      .slice(0, 8);
+    stuckItems.value = (stuckResult.items || []).slice(0, 5);
   } catch (err) {
     ElMessage.error(errorMessage(err, '加载驾驶舱失败'));
   } finally {
@@ -246,6 +257,44 @@ onMounted(load);
           empty-text="没有在途任务或开放变更"
           @open="openQueue"
         />
+      </div>
+    </div>
+
+    <div class="obs-grid">
+      <div class="panel">
+        <div class="panel__head">
+          <span class="panel__title">在线主体</span>
+          <el-button size="small" text @click="router.push({ name: 'agents' })">主体与在线状态</el-button>
+        </div>
+        <EmptyState v-if="onlineActors.length === 0" description="最近 15 分钟没有活跃主体" :height="'80px'" />
+        <div v-for="actor in onlineActors" :key="actor.actor_id" class="queue-item">
+          <div class="queue-item__title">{{ actor.display_name }}</div>
+          <div class="queue-item__meta">
+            <el-tag size="small" effect="plain">{{ actor.type === 'human' ? '人类' : actor.type === 'agent' ? 'Agent' : '服务' }}</el-tag>
+            <span class="muted">活跃认领 {{ actor.active_claims }}</span>
+            <span v-if="actor.last_used_at" class="muted">{{ formatTime(actor.last_used_at) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__head">
+          <span class="panel__title">卡住的任务</span>
+          <el-button size="small" text @click="router.push({ name: 'agents' })">查看全部</el-button>
+        </div>
+        <EmptyState v-if="stuckItems.length === 0" description="没有被判定为卡住的任务" :height="'80px'" />
+        <div
+          v-for="item in stuckItems"
+          :key="`${item.kind}-${item.task_id}-${item.claim_id || ''}`"
+          class="queue-item clickable"
+          @click="router.push({ name: 'task-detail', params: { id: projectId, taskId: item.task_id } })"
+        >
+          <div class="queue-item__title">{{ item.detail }}</div>
+          <div class="queue-item__meta">
+            <el-tag size="small" type="danger" effect="plain">{{ item.kind }}</el-tag>
+            <span class="mono muted">{{ item.task_id }}</span>
+          </div>
+        </div>
       </div>
     </div>
 

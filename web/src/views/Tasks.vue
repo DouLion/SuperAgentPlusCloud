@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
@@ -17,6 +17,12 @@ const claimMap = ref({});
 const loading = ref(false);
 const activeTab = ref('claimable');
 const workerId = ref(localStorage.getItem('sap.workerId') || '');
+
+const claimVisible = ref(false);
+const claimSubmitting = ref(false);
+const claimForm = reactive({ task: null, actor: '', role: 'owner', ttl: 60 });
+
+const TTL_OPTIONS = [30, 60, 120];
 
 const TABS = [
   { key: 'claimable', label: '可认领' },
@@ -59,13 +65,50 @@ async function loadClaims(taskId) {
   }
 }
 
+/** 该任务当前 active 的 owner 认领。 */
+function ownerClaim(taskId) {
+  return (claimMap.value[taskId] || []).find((claim) => claim.status === 'active' && claim.role === 'owner') || null;
+}
+
+/** 我在该任务上的 active 认领（owner 或 collaborator）。 */
+function myClaim(taskId) {
+  const me = workerId.value.trim();
+  if (!me) return null;
+  return (claimMap.value[taskId] || []).find(
+    (claim) => claim.status === 'active' && (claim.actor_id === me || claim.worker_id === me),
+  ) || null;
+}
+
+/** 租约剩余分钟；无租约返回 null。 */
+function leaseMinutes(claim) {
+  if (!claim?.lease_expires_at) return null;
+  const remain = Date.parse(claim.lease_expires_at) - Date.now();
+  return Math.round(remain / 60000);
+}
+
+function leaseTone(claim) {
+  const minutes = leaseMinutes(claim);
+  if (minutes === null) return 'info';
+  if (minutes <= 0) return 'info';
+  return minutes < 5 ? 'danger' : 'success';
+}
+
+function leaseText(claim) {
+  const minutes = leaseMinutes(claim);
+  if (minutes === null) return '无租约';
+  if (minutes <= 0) return '租约已过期';
+  return `租约剩 ${minutes} 分钟`;
+}
+
 async function load() {
   if (!projectId) return;
   loading.value = true;
   try {
     tasks.value = await api.listTasks({ project_id: projectId });
     await Promise.all(
-      tasks.value.filter((task) => task.status === 'claimed').map((task) => loadClaims(task.task_id)),
+      tasks.value
+        .filter((task) => ['claimed', 'submitted'].includes(task.status))
+        .map((task) => loadClaims(task.task_id)),
     );
   } catch (err) {
     ElMessage.error(errorMessage(err, '加载任务失败'));
@@ -82,6 +125,65 @@ function saveWorker() {
 
 function openDetail(row) {
   go(router, 'task-detail', { id: projectId, taskId: row.task_id });
+}
+
+function openClaim(row, role) {
+  Object.assign(claimForm, {
+    task: row,
+    actor: workerId.value.trim(),
+    role,
+    ttl: 60,
+  });
+  claimVisible.value = true;
+}
+
+async function submitClaim() {
+  if (!claimForm.actor.trim()) {
+    ElMessage.warning('请填写主体 ID');
+    return;
+  }
+  claimSubmitting.value = true;
+  try {
+    const taskId = claimForm.task.task_id;
+    if (claimForm.role === 'collaborator') {
+      await api.joinTask(taskId, { actor_id: claimForm.actor.trim(), ttl_seconds: claimForm.ttl * 60 });
+      ElMessage.success('已作为协作者加入');
+    } else {
+      const result = await api.claimTask(taskId, {
+        actor_id: claimForm.actor.trim(),
+        role: 'owner',
+        ttl_seconds: claimForm.ttl * 60,
+      });
+      ElMessage.success(`已认领：${result.claim.claim_id}`);
+    }
+    workerId.value = claimForm.actor.trim();
+    saveWorker();
+    claimVisible.value = false;
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '认领失败'));
+  } finally {
+    claimSubmitting.value = false;
+  }
+}
+
+async function heartbeat(row) {
+  const claim = myClaim(row.task_id);
+  if (!claim) {
+    ElMessage.warning('你在该任务上没有活跃认领');
+    return;
+  }
+  try {
+    await api.heartbeatClaim(claim.claim_id, { actor_id: claimFormActorValue(claim) });
+    ElMessage.success('已续租');
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '续租失败'));
+  }
+}
+
+function claimFormActorValue(claim) {
+  return claim.actor_id || claim.worker_id || workerId.value.trim();
 }
 
 onMounted(load);
@@ -147,15 +249,83 @@ onMounted(load);
             <el-tag size="small" type="warning" effect="plain">依赖 {{ task.blocked_by.join('，') }}</el-tag>
           </div>
 
+          <div v-if="ownerClaim(task.task_id)" class="queue-item__meta">
+            <span class="muted">负责人：{{ ownerClaim(task.task_id).actor_id || ownerClaim(task.task_id).worker_id }}</span>
+            <el-tag size="small" :type="leaseTone(ownerClaim(task.task_id))" effect="plain">
+              {{ leaseText(ownerClaim(task.task_id)) }}
+            </el-tag>
+          </div>
+
           <div class="done-block">
             <div class="done-block__title">完成条件</div>
             <ul class="done-list">
               <li v-for="(done, i) in task.done_when || []" :key="i">{{ done }}</li>
             </ul>
           </div>
+
+          <div class="task-actions" @click.stop>
+            <el-button
+              v-if="['open', 'rework'].includes(task.status)"
+              size="small"
+              type="primary"
+              plain
+              @click="openClaim(task, 'owner')"
+            >
+              认领
+            </el-button>
+            <el-button
+              v-if="task.status === 'claimed' && !myClaim(task.task_id)"
+              size="small"
+              plain
+              @click="openClaim(task, 'collaborator')"
+            >
+              作为协作者加入
+            </el-button>
+            <el-button
+              v-if="myClaim(task.task_id)"
+              size="small"
+              plain
+              @click="heartbeat(task)"
+            >
+              心跳续租
+            </el-button>
+            <el-button size="small" text @click="openDetail(task)">详情</el-button>
+          </div>
         </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="claimVisible" :title="claimForm.role === 'collaborator' ? '作为协作者加入' : '认领任务'" width="480px">
+      <el-form label-width="96px">
+        <el-form-item label="任务">
+          <span class="mono">{{ claimForm.task?.task_id }}</span>
+        </el-form-item>
+        <el-form-item label="主体 ID" required>
+          <el-input v-model="claimForm.actor" placeholder="worker 或 actor id" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-tag size="small" effect="plain">{{ claimForm.role === 'collaborator' ? '协作者（不改任务状态）' : '负责人（唯一）' }}</el-tag>
+        </el-form-item>
+        <el-form-item label="租约时长">
+          <el-select v-model="claimForm.ttl" style="width: 160px">
+            <el-option v-for="minute in TTL_OPTIONS" :key="minute" :label="`${minute} 分钟`" :value="minute" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <el-alert
+        type="info"
+        show-icon
+        :closable="false"
+        title="认领是承诺，不是抢单"
+        description="租约到期未续租会自动回到可认领；旧令牌之后不能再提交。"
+      />
+      <template #footer>
+        <el-button @click="claimVisible = false">取消</el-button>
+        <el-button type="primary" :loading="claimSubmitting" @click="submitClaim">
+          {{ claimForm.role === 'collaborator' ? '加入' : '认领' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -202,5 +372,12 @@ onMounted(load);
 
 .done-list li {
   margin-bottom: 2px;
+}
+
+.task-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

@@ -3,6 +3,16 @@ export function go(router, name, params = {}) {
   return router.push({ name, params });
 }
 
+/** 全局导航分组：项目之外的系统级页面。 */
+export function globalNavGroups() {
+  return [
+    {
+      title: '运行',
+      items: [{ name: 'agents', title: '主体与在线状态', icon: 'Connection' }],
+    },
+  ];
+}
+
 /** 项目内导航分组：总览 / 项目认知 / 交付执行 / 治理追溯。 */
 export function projectNavGroups(id) {
   return [

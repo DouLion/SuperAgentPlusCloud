@@ -3,6 +3,26 @@
 
 const BASE = (import.meta.env.VITE_CENTER_URL || '').replace(/\/+$/, '');
 const API_PREFIX = '/sap-cloud/api';
+const TOKEN_KEY = 'sap.token';
+
+/** 读取面板保存的访问令牌（用于需要人类签署/身份管理的动作）。 */
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+/** 保存或清除访问令牌；空值表示匿名。 */
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // 隐私模式下不可写，忽略即可。
+  }
+}
 
 /** 把查询对象编码为 querystring；空值忽略。 */
 function queryString(query) {
@@ -18,6 +38,8 @@ function queryString(query) {
 /** 发起一次 JSON 请求。 */
 async function request(method, path, body) {
   const init = { method, headers: {} };
+  const token = getToken();
+  if (token) init.headers.authorization = `Bearer ${token}`;
   if (body !== undefined) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -100,6 +122,7 @@ export const api = {
     request('POST', `/claims/${encodeURIComponent(claimId)}/heartbeat`, input),
   releaseClaim: (claimId, input) =>
     request('POST', `/claims/${encodeURIComponent(claimId)}/release`, input),
+  joinTask: (id, input) => request('POST', `/tasks/${encodeURIComponent(id)}/join`, input),
   getTaskContext: (id) => request('GET', `/tasks/${encodeURIComponent(id)}/context`),
   listTaskCandidates: (id) => request('GET', `/tasks/${encodeURIComponent(id)}/candidates`),
 
@@ -118,7 +141,7 @@ export const api = {
     request('POST', `/delegations/${encodeURIComponent(id)}/revoke`, input),
   listCapabilities: (id) => request('GET', `/actors/${encodeURIComponent(id)}/capabilities`),
   setCapability: (id, input) =>
-    request('PUT', `/actors/${encodeURIComponent(id)}/capabilities`, input),
+    request('POST', `/actors/${encodeURIComponent(id)}/capabilities`, input),
 
   // 观测（P5）
   observabilityActors: () => request('GET', '/observability/actors'),

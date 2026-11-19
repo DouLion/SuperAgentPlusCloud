@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
@@ -30,6 +30,7 @@ const submitForm = reactive({
   self_test: '',
   known_gaps: '',
   submitted_by: '',
+  fencing_token: '',
 });
 const submitRules = {
   commit_refs: [{ required: true, message: '请至少填写一个 commit 引用（repo@hash）', trigger: 'blur' }],
@@ -48,6 +49,40 @@ const reviewForm = reactive({
 });
 
 const activeClaim = computed(() => claims.value.find((claim) => claim.status === 'active') || null);
+
+/** 租约倒计时：每秒刷新，组件卸载时清理。 */
+const nowMs = ref(Date.now());
+let ticker = null;
+
+const activeClaimLease = computed(() => {
+  const claim = activeClaim.value;
+  if (!claim?.lease_expires_at) return null;
+  const remainMs = Date.parse(claim.lease_expires_at) - nowMs.value;
+  return {
+    remainMs,
+    expired: remainMs <= 0,
+    text: remainMs <= 0
+      ? '租约已过期'
+      : `租约剩 ${Math.floor(remainMs / 60000)} 分 ${Math.floor((remainMs % 60000) / 1000)} 秒`,
+  };
+});
+
+const contextBundle = ref(null);
+const contextError = ref('');
+const contextLoading = ref(false);
+
+async function loadContext() {
+  contextLoading.value = true;
+  contextError.value = '';
+  try {
+    contextBundle.value = await api.getTaskContext(taskId);
+  } catch (err) {
+    contextBundle.value = null;
+    contextError.value = errorMessage(err, '上下文暂不可用');
+  } finally {
+    contextLoading.value = false;
+  }
+}
 
 const stepIndex = computed(() => {
   const status = task.value?.status;
@@ -177,6 +212,7 @@ function openSubmit() {
     self_test: '',
     known_gaps: '',
     submitted_by: activeClaim.value?.worker_id || workerId.value,
+    fencing_token: activeClaim.value?.fencing_token ?? '',
   });
   submitVisible.value = true;
 }
@@ -205,6 +241,8 @@ async function submitDelivery() {
       self_test: submitForm.self_test || undefined,
       known_gaps: submitForm.known_gaps.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
       submitted_by: submitForm.submitted_by,
+      claim_id: activeClaim.value?.claim_id,
+      fencing_token: submitForm.fencing_token === '' ? undefined : Number(submitForm.fencing_token),
     });
     ElMessage.success(`提交已登记：${created.submission_id}，任务进入待评审`);
     submitVisible.value = false;
@@ -268,6 +306,15 @@ onMounted(() => {
     return;
   }
   load();
+  loadContext();
+  ticker = setInterval(() => { nowMs.value = Date.now(); }, 1000);
+});
+
+onBeforeUnmount(() => {
+  if (ticker) {
+    clearInterval(ticker);
+    ticker = null;
+  }
 });
 </script>
 
@@ -412,8 +459,25 @@ onMounted(() => {
             <div class="panel__head">
               <span class="panel__title">操作区</span>
               <span v-if="activeClaim" class="muted">
-                当前认领：{{ activeClaim.worker_id }}
+                当前认领：{{ activeClaim.actor_id || activeClaim.worker_id }}
               </span>
+            </div>
+
+            <div v-if="activeClaim" class="claim-brief">
+              <el-tag size="small" effect="plain">
+                {{ activeClaim.role === 'collaborator' ? '协作者' : '负责人' }}
+              </el-tag>
+              <el-tag size="small" effect="plain" type="info" class="mono">
+                fencing {{ activeClaim.fencing_token ?? '—' }}
+              </el-tag>
+              <el-tag
+                v-if="activeClaimLease"
+                size="small"
+                :type="activeClaimLease.expired ? 'danger' : (activeClaimLease.remainMs < 300000 ? 'danger' : 'success')"
+                effect="plain"
+              >
+                {{ activeClaimLease.text }}
+              </el-tag>
             </div>
             <el-input
               v-model="workerId"
@@ -456,6 +520,38 @@ onMounted(() => {
           </div>
 
           <div class="panel">
+            <el-collapse>
+              <el-collapse-item title="上下文摘要（Agent 与人都可据此判断依据版本）" name="context">
+                <div v-if="contextLoading" class="muted">正在读取上下文…</div>
+                <el-alert
+                  v-else-if="contextError"
+                  type="info"
+                  show-icon
+                  :closable="false"
+                  :title="contextError"
+                  description="上下文包不可用不影响认领与提交，只影响能否核对版本。"
+                />
+                <div v-else-if="contextBundle" class="context-block">
+                  <div class="muted">
+                    生成时间：{{ formatTime(contextBundle.generated_at) }}
+                    <span v-if="contextBundle.staleness">　状态：{{ contextBundle.staleness }}</span>
+                  </div>
+                  <div class="digest-grid">
+                    <template v-for="(value, key) in contextBundle.digests || {}" :key="key">
+                      <span class="desc-label">{{ key }}</span>
+                      <span class="mono muted">{{ value || '—' }}</span>
+                    </template>
+                  </div>
+                  <div class="muted" style="margin-top: 6px">
+                    认领与提交时引用这些摘要，可以说明当时基于哪一版约定与契约。
+                  </div>
+                </div>
+                <div v-else class="muted">暂无上下文</div>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
+
+          <div class="panel">
             <div class="panel__head">
               <span class="panel__title">认领历史</span>
             </div>
@@ -493,6 +589,10 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="提交人" prop="submitted_by">
           <el-input v-model="submitForm.submitted_by" />
+        </el-form-item>
+        <el-form-item label="fencing token">
+          <el-input v-model="submitForm.fencing_token" placeholder="默认带入当前认领令牌" />
+          <div class="muted" style="margin-top: 4px">令牌小于当前最大值会被拒绝：租约过期后不能用旧权利提交。</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -547,6 +647,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.claim-brief {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.context-block {
+  font-size: 13px;
+}
+
+.digest-grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 4px 10px;
+  margin-top: 8px;
+  word-break: break-all;
+}
+
 .done-block {
   margin-top: 10px;
   background: var(--sap-bg-soft);

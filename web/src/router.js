@@ -11,6 +11,7 @@ import Changes from './views/Changes.vue';
 import Timeline from './views/Timeline.vue';
 import Setup from './views/Setup.vue';
 import Settings from './views/Settings.vue';
+import Agents from './views/Agents.vue';
 
 // URL 契约见 docs/08 §3：页面统一在 /sap-cloud/* 下，项目内部嵌套在 /project/:id/*。
 const routes = [
@@ -18,6 +19,7 @@ const routes = [
   { path: '/setup', name: 'setup', component: Setup, meta: { title: '初始化设置' } },
   { path: '/settings', name: 'settings', component: Settings, meta: { title: '系统设置' } },
   { path: '/projects', name: 'projects', component: ProjectList, meta: { title: '项目列表' } },
+  { path: '/agents', name: 'agents', component: Agents, meta: { title: '主体与在线状态' } },
   {
     path: '/project/:id',
     redirect: (to) => `/project/${to.params.id}/overview`,
