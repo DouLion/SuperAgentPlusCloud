@@ -6,8 +6,14 @@ import { listCapabilities, setCapability } from '../../db/capabilities.mjs';
 import { bearerToken, resolveRequestActor } from '../../auth/policy.mjs';
 import { codedError } from '../../db/json.mjs';
 
+/** 引导期：还没签发过任何凭据时，允许匿名完成初始能力配置。 */
+function isBootstrapOpen(db) {
+  return Number(db.prepare('SELECT COUNT(*) AS n FROM actor_credentials').get().n) === 0;
+}
+
 /** 写能力：必须带有效 token；human 可改任意主体，agent/service 只能改自己。 */
 function requireCapabilityWriter(db, req, targetActorId) {
+  if (isBootstrapOpen(db)) return null;
   const token = bearerToken(req);
   if (!token) throw codedError('AUTH_REQUIRED', '此操作需要 Authorization: Bearer <token>', 401);
   const resolved = resolveRequestActor(db, req);

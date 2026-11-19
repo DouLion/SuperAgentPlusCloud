@@ -35,10 +35,19 @@ function hasAnyCredential(db) {
 }
 
 /**
+ * 引导期：系统还没有任何主体，或还没有签发过任何凭据。
+ * 期间允许匿名完成初始身份配置（负责人 + Agent + 能力），一旦签发凭据即关闭。
+ */
+function isBootstrapOpen(db) {
+  return !hasAnyCredential(db);
+}
+
+/**
  * 身份管理动作：当前主体必须是管理员人类。
  * @returns {{error: object}|{auth: object}}
  */
 function requireAdmin(db, req, action = 'actor.manage') {
+  if (isBootstrapOpen(db)) return { auth: { actor: null, actor_type: 'legacy' } };
   const auth = assertCan(db, req, action, {});
   if (auth.actor_type !== 'human') {
     return {
@@ -64,7 +73,7 @@ export const ROUTES = [
     method: 'POST',
     pattern: '/actors',
     handler: ({ db, body, req }) => {
-      if (!isBootstrap(db)) {
+      if (!isBootstrapOpen(db)) {
         const guard = requireAdmin(db, req);
         if (guard.error) return guard.error;
       }

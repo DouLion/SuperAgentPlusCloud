@@ -156,7 +156,122 @@ async function createDemo() {
       items.push(await api.confirmTrunkItem(created.item_id, { confirmed_by: '演示' }));
     }
 
-    // 2) 三条需求。
+    // 2) 项目约定包：禁止 PUT/DELETE、统一响应包络、路径 kebab、字段 camel。
+    const pack = await api.createConventionPack({
+      name: '演示：API 约定',
+      description: '团队偏好示例，可按项目改写。',
+      scope: 'project',
+      project_id: projectId,
+      created_by: '演示',
+      rules: [
+        { key: 'api.methods.forbidden', category: 'api', title: '禁止 PUT/DELETE', severity: 'must', value: { methods: ['put', 'delete'] }, rationale: '网关与审计只支持查询/动作式 POST。' },
+        { key: 'api.response', category: 'api', title: '统一响应包络', severity: 'must', value: { fields: ['status', 'message', 'data'] }, rationale: '前端统一按包络解析。' },
+        { key: 'api.path.case', category: 'api', title: '路径 kebab-case', severity: 'must', value: { style: 'kebab-case' } },
+        { key: 'api.field.case', category: 'api', title: '字段 camelCase', severity: 'should', value: { style: 'camelCase' } },
+      ],
+    });
+    await api.activateConventionPack(pack.pack_id, { activated_by: '演示', reason: '演示项目启用 API 约定' });
+
+    // 3) 编排模板：内置 contract-first-api 落到本项目。
+    await api.seedWorkflowTemplates({ project_id: projectId, created_by: '演示' });
+
+    // 4) 契约 v1：一份符合约定的 API 契约，校验通过后发布。
+    const contractBody = (version, extraPath = false) => ({
+      openapi: '3.1.0',
+      info: { title: '演示订单 API', version },
+      paths: {
+        '/orders/query': {
+          post: {
+            operationId: 'queryOrders',
+            summary: '按条件查询订单',
+            responses: {
+              200: { content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderListEnvelope' } } } },
+            },
+          },
+        },
+        ...(extraPath ? {
+          '/orders/detail': {
+            post: {
+              operationId: 'orderDetail',
+              summary: '查询订单详情',
+              responses: {
+                200: { content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderListEnvelope' } } } },
+              },
+            },
+          },
+        } : {}),
+      },
+      components: {
+        schemas: {
+          OrderListEnvelope: {
+            type: 'object',
+            required: ['status', 'message', 'data'],
+            properties: {
+              status: { type: 'integer', const: 1 },
+              message: { type: 'string', example: 'ok' },
+              data: { type: 'array', items: { $ref: '#/components/schemas/Order' } },
+            },
+          },
+          Order: { type: 'object', properties: { orderId: { type: 'string', example: 'O-1' } } },
+        },
+      },
+    });
+
+    const contract = await api.createArtifact({
+      project_id: projectId,
+      type: 'api_contract',
+      name: '演示订单 API',
+      created_by: '演示',
+      content: contractBody('1.0.0'),
+    });
+    await api.publishArtifact(contract.artifact_id, { published_by: '演示', reason: '演示契约首版' });
+
+    // 5) 一条材料：真实文本，供「材料与提取」页面演示，AI 未配置时也能看到原文。
+    const material = await api.createMaterial({
+      project_id: projectId,
+      title: '演示会议纪要',
+      kind: 'meeting',
+      source_ref: 'demo://meeting/2026-11-19',
+      created_by: '演示',
+      content: [
+        '会议主题：订单导出与接口前缀调整',
+        '一、背景',
+        '运营反馈导出接口在数据量大时超时；前端点击导出按钮偶发无响应。',
+        '二、结论',
+        '1. 导出接口改为 POST /orders/query 的异步任务式调用，返回包络统一为 {status,message,data}。',
+        '2. 页面与接口前缀统一到 /sap-cloud，旧路径保留 308 迁移提示。',
+        '3. 前端与后端先对齐契约，再各自实现，最后联调；契约变更需登记影响。',
+        '三、待确认',
+        '1. 历史数据导出是否仍保留同步接口，需与运维确认。',
+        '2. 导出任务失败的重试次数尚未确定。',
+      ].join('\n'),
+    });
+
+    // 6) 主体与成员：仅在系统还没有任何凭据（引导期）时创建，避免与管理员锁定冲突。
+    try {
+      const existingActors = await api.listActors();
+      if (Array.isArray(existingActors) && existingActors.length === 0) {
+        const owner = await api.createActor({ type: 'human', display_name: '演示负责人', created_by: '演示' });
+        const reviewer = await api.createActor({ type: 'human', display_name: '演示评审者', created_by: '演示' });
+        const agent = await api.createActor({
+          type: 'agent',
+          display_name: '演示 Agent',
+          on_behalf_of: owner.actor_id,
+          project_id: projectId,
+          allowed_actions: ['claim', 'submit', 'report'],
+          created_by: '演示',
+        });
+        await api.setCapability(agent.actor_id, { key: 'backend', level: 'expert' });
+        await api.addMember(projectId, { actor_id: owner.actor_id, roles: ['owner', 'direction'], created_by: '演示' });
+        await api.addMember(projectId, { actor_id: reviewer.actor_id, roles: ['reviewer', 'contributor'], created_by: '演示' });
+        await api.addMember(projectId, { actor_id: agent.actor_id, roles: ['contributor'], created_by: '演示' });
+      }
+    } catch (actorErr) {
+      // 身份初始化失败不影响演示项目主体数据。
+      console.warn('演示主体未创建：', actorErr);
+    }
+
+    // 7) 三条需求。
     const requirementIds = [];
     const requirementSeed = [
       { raw_text: '把页面与接口迁移到 /sap-cloud/*，旧路径重定向。', claimed_level: 'L2' },
@@ -211,6 +326,7 @@ async function createDemo() {
       summary: '完成接口前缀迁移，但遗漏页面深链回落。',
       self_test: '接口前缀测试通过，页面深链未覆盖。',
       known_gaps: ['刷新项目深链返回 404'],
+      artifacts: [contract.artifact_id],
     });
     await api.createReview(firstSubmission.submission_id, {
       reviewer_id: '演示评审者',
@@ -254,70 +370,17 @@ async function createDemo() {
       owner_id: '演示',
     });
 
-    // 6) 项目约定包：禁止 PUT/DELETE、统一响应包络、路径 kebab、字段 camel。
-    const pack = await api.createConventionPack({
-      name: '演示：API 约定',
-      description: '团队偏好示例，可按项目改写。',
-      scope: 'project',
-      project_id: projectId,
-      created_by: '演示',
-      rules: [
-        { key: 'api.methods.forbidden', category: 'api', title: '禁止 PUT/DELETE', severity: 'must', value: { methods: ['put', 'delete'] }, rationale: '网关与审计只支持查询/动作式 POST。' },
-        { key: 'api.response', category: 'api', title: '统一响应包络', severity: 'must', value: { fields: ['status', 'message', 'data'] }, rationale: '前端统一按包络解析。' },
-        { key: 'api.path.case', category: 'api', title: '路径 kebab-case', severity: 'must', value: { style: 'kebab-case' } },
-        { key: 'api.field.case', category: 'api', title: '字段 camelCase', severity: 'should', value: { style: 'camelCase' } },
-      ],
-    });
-    await api.activateConventionPack(pack.pack_id, { activated_by: '演示', reason: '演示项目启用 API 约定' });
-
-    // 7) 编排模板：内置 contract-first-api 落到本项目。
-    await api.seedWorkflowTemplates({ project_id: projectId, created_by: '演示' });
-
-    // 8) 一份符合约定的 API 契约，校验通过后发布。
-    const contract = await api.createArtifact({
+    // 11) 契约 v2：新增一个接口后发布，自动为引用 v1 的提交生成待检查影响。
+    const contractV2 = await api.createArtifact({
       project_id: projectId,
       type: 'api_contract',
       name: '演示订单 API',
       created_by: '演示',
-      content: {
-        openapi: '3.1.0',
-        info: { title: '演示订单 API', version: '1.0.0' },
-        paths: {
-          '/orders/query': {
-            post: {
-              operationId: 'queryOrders',
-              summary: '按条件查询订单',
-              responses: {
-                200: {
-                  content: {
-                    'application/json': {
-                      schema: { $ref: '#/components/schemas/OrderListEnvelope' },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        components: {
-          schemas: {
-            OrderListEnvelope: {
-              type: 'object',
-              required: ['status', 'message', 'data'],
-              properties: {
-                status: { type: 'integer', const: 1 },
-                message: { type: 'string', example: 'ok' },
-                data: { type: 'array', items: { $ref: '#/components/schemas/Order' } },
-              },
-            },
-            Order: { type: 'object', properties: { orderId: { type: 'string', example: 'O-1' } } },
-          },
-        },
-      },
+      content: contractBody('1.1.0', true),
     });
-    await api.publishArtifact(contract.artifact_id, { published_by: '演示', reason: '演示契约首版' });
+    await api.publishArtifact(contractV2.artifact_id, { published_by: '演示', reason: '新增订单详情接口' });
 
-    ElMessage.success('演示项目已创建：主干、需求、任务、变更、约定包、编排模板与已发布契约都在其中。');
+    ElMessage.success('演示项目已创建：主干、需求、任务链、变更影响、约定包、编排模板、契约 v1→v2、材料与主体都在其中。');
     await load();
     go(router, 'dashboard', { id: projectId });
   } catch (err) {
