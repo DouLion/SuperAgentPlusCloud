@@ -60,25 +60,106 @@ const changeForm = reactive({
   created_by: '',
 });
 
-const treeData = computed(() => {
+const NODE_W = 208;
+const NODE_H = 56;
+const GAP_X = 20;
+const GAP_Y = 40;
+const PAD = 16;
+
+/** 折叠分支：默认全部展开。 */
+const collapsed = ref(new Set());
+
+function toggleCollapse(key) {
+  const next = new Set(collapsed.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  collapsed.value = next;
+}
+
+/** 先按 relations 组树，没有父子关系的条目各自成树。 */
+const forest = computed(() => {
   const nodes = items.value.map((item) => ({
-    ...item,
+    key: item.item_id,
+    item,
     label: `[${TRUNK_KIND_TEXT[item.kind] || item.kind}] ${item.statement}`,
     children: [],
   }));
-  const byId = new Map(nodes.map((node) => [node.item_id, node]));
+  const byId = new Map(nodes.map((node) => [node.key, node]));
   const hasParent = new Set();
   for (const node of nodes) {
-    for (const relation of node.relations || []) {
+    for (const relation of node.item.relations || []) {
       const targetId = typeof relation === 'string' ? null : (relation.item_id ?? relation.itemId);
-      if (!targetId || !byId.has(targetId) || targetId === node.item_id) continue;
+      if (!targetId || !byId.has(targetId) || targetId === node.key) continue;
       byId.get(targetId).children.push(node);
-      hasParent.add(node.item_id);
+      hasParent.add(node.key);
     }
   }
-  const roots = nodes.filter((node) => !hasParent.has(node.item_id));
+  const roots = nodes.filter((node) => !hasParent.has(node.key));
   return roots.length > 0 ? roots : nodes;
 });
+
+/**
+ * 多叉树布局：每个节点宽度等于其子树总宽，父节点居中于子节点之上。
+ * 折叠的分支按叶子计算宽度。
+ */
+const tree = computed(() => {
+  const roots = forest.value;
+  if (roots.length === 0) return { width: 0, height: 0, nodes: [], edges: [] };
+
+  const root = { key: '__root__', item: null, label: '项目主干', children: roots, synthetic: true };
+  const laid = [];
+  const edges = [];
+
+  function visibleChildren(node) {
+    if (node.synthetic) return node.children;
+    if (collapsed.value.has(node.key)) return [];
+    return node.children;
+  }
+
+  function measure(node) {
+    const children = visibleChildren(node);
+    if (children.length === 0) return { width: NODE_W, children };
+    const measured = children.map((child) => measure(child));
+    const width = measured.reduce((sum, one) => sum + one.width, 0) + GAP_X * (children.length - 1);
+    return { width, children: measured };
+  }
+
+  function place(node, measured, left, depth) {
+    const centerX = left + measured.width / 2;
+    const y = PAD + depth * (NODE_H + GAP_Y);
+    laid.push({ ...node, x: centerX, y, depth });
+    let cursor = left;
+    for (const child of measured.children) {
+      const placed = place(child.node, child, cursor, depth + 1);
+      edges.push({ from: { x: centerX, y: y + NODE_H }, to: { x: placed.x, y: placed.y } });
+      cursor += child.width + GAP_X;
+    }
+    return { x: centerX, y };
+  }
+
+  const measuredRoot = measure(root);
+  place(root, measuredRoot, PAD, 0);
+  const width = measuredRoot.width + PAD * 2;
+  const maxDepth = Math.max(...laid.map((node) => node.depth));
+  const height = PAD * 2 + (maxDepth + 1) * NODE_H + maxDepth * GAP_Y;
+  return { width, height, nodes: laid, edges };
+});
+
+function edgePath(edge) {
+  const mid = (edge.from.y + edge.to.y) / 2;
+  return `M ${edge.from.x} ${edge.from.y} C ${edge.from.x} ${mid}, ${edge.to.x} ${mid}, ${edge.to.x} ${edge.to.y}`;
+}
+
+function nodeClass(node) {
+  if (node.synthetic) return 'trunk-node trunk-node--root';
+  if (node.children.length) return 'trunk-node trunk-node--branch';
+  return 'trunk-node';
+}
+
+function nodeKindLabel(node) {
+  if (node.synthetic) return `${items.value.length} 条`;
+  return TRUNK_KIND_TEXT[node.item.kind] || node.item.kind;
+}
 
 /** 右侧：谁引用了它、谁会被它影响。 */
 const references = computed(() => {
@@ -308,33 +389,93 @@ onMounted(() => {
 
     <TrunkQuality :items="qualityItems" />
 
-    <div class="workbench">
-      <div class="workbench__col">
-        <div class="panel">
-          <div class="panel__head">
-            <span class="panel__title">层级</span>
-            <span class="panel__count">{{ items.length }}</span>
+    <div class="trunk-layout">
+      <div class="panel trunk-stage">
+        <div class="panel__head">
+          <span class="panel__title">多叉树</span>
+          <span class="panel__count">{{ items.length }}</span>
+        </div>
+        <EmptyState v-if="items.length === 0" description="无" :height="'200px'" />
+        <div v-else class="trunk-stage__scroll">
+          <div class="trunk-stage__inner" :style="{ width: `${tree.width}px`, height: `${tree.height}px` }">
+            <svg class="trunk-edges" :width="tree.width" :height="tree.height" aria-hidden="true">
+              <path v-for="(edge, index) in tree.edges" :key="index" :d="edgePath(edge)" />
+            </svg>
+            <div
+              v-for="node in tree.nodes"
+              :key="node.key"
+              :class="[
+                nodeClass(node),
+                selectedItem && !node.synthetic && node.item.item_id === selectedItem.item_id ? 'is-selected' : '',
+              ]"
+              :style="{ left: `${node.x - NODE_W / 2}px`, top: `${node.y}px` }"
+              @click="!node.synthetic && onTreeClick(node.item)"
+            >
+              <div class="trunk-node__head">
+                <span class="trunk-node__kind">{{ nodeKindLabel(node) }}</span>
+                <el-tag
+                  v-if="!node.synthetic"
+                  size="small"
+                  :type="node.item.status === 'active' ? 'success' : node.item.status === 'retired' ? 'info' : 'warning'"
+                >
+                  {{ node.item.status === 'active' ? '生效' : node.item.status === 'retired' ? '退役' : '待确认' }}
+                </el-tag>
+                <span
+                  v-if="node.children && node.children.length && !node.synthetic"
+                  class="trunk-node__toggle"
+                  @click.stop="toggleCollapse(node.key)"
+                >
+                  {{ collapsed.has(node.key) ? `+${node.children.length}` : '−' }}
+                </span>
+              </div>
+              <div class="trunk-node__text">{{ node.synthetic ? '所有生效与待确认条目' : node.item.statement }}</div>
+            </div>
           </div>
-          <EmptyState v-if="items.length === 0" description="暂无主干条目" :height="'160px'" />
-          <el-tree
-            v-else
-            :data="treeData"
-            :props="{ label: 'label', children: 'children' }"
-            default-expand-all
-            node-key="item_id"
-            highlight-current
-            @node-click="onTreeClick"
-          />
         </div>
       </div>
 
-      <div class="workbench__col">
+      <div class="trunk-side">
+        <div class="panel">
+          <div class="panel__head">
+            <span class="panel__title">操作</span>
+          </div>
+          <div class="trunk-actions">
+            <el-button type="primary" @click="openPropose">
+              <el-icon><Plus /></el-icon>
+              提出条目
+            </el-button>
+            <el-button
+              v-if="selectedItem && selectedItem.status === 'proposed'"
+              type="primary"
+              plain
+              @click="openConfirm(selectedItem)"
+            >
+              确认生效
+            </el-button>
+            <el-button
+              v-if="selectedItem && selectedItem.status === 'active'"
+              type="primary"
+              plain
+              @click="startChange(selectedItem)"
+            >
+              变更此约定
+            </el-button>
+            <el-button v-if="selectedItem && selectedItem.status === 'active'" plain @click="confirmRetire(selectedItem)">
+              退役
+            </el-button>
+            <el-button plain @click="load">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </div>
+        </div>
+
         <div class="panel">
           <div class="panel__head">
             <span class="panel__title">条目详情</span>
             <StatusTag v-if="selectedItem" group="trunk" :value="selectedItem.status" size="small" />
           </div>
-          <EmptyState v-if="!selectedItem" description="未选择条目" :height="'160px'" />
+          <EmptyState v-if="!selectedItem" description="未选择条目" :height="'120px'" />
           <div v-else>
             <div class="desc-grid">
               <span class="desc-label">表述</span>
@@ -358,39 +499,9 @@ onMounted(() => {
               </span>
               <span v-else>—</span>
             </div>
-
-            <div class="suggestion-actions">
-              <el-button
-                v-if="selectedItem.status === 'proposed'"
-                size="small"
-                type="primary"
-                plain
-                @click="openConfirm(selectedItem)"
-              >
-                确认生效
-              </el-button>
-              <el-button
-                v-if="selectedItem.status === 'active'"
-                size="small"
-                type="primary"
-                @click="startChange(selectedItem)"
-              >
-                变更此约定
-              </el-button>
-              <el-button
-                v-if="selectedItem.status === 'active'"
-                size="small"
-                plain
-                @click="confirmRetire(selectedItem)"
-              >
-                退役
-              </el-button>
-            </div>
           </div>
         </div>
-      </div>
 
-      <div class="workbench__col">
         <div class="panel">
           <div class="panel__head">
             <span class="panel__title">引用与影响</span>
@@ -539,3 +650,112 @@ onMounted(() => {
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.trunk-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.trunk-stage {
+  min-height: 420px;
+}
+
+.trunk-stage__scroll {
+  overflow: auto;
+  max-height: calc(100vh - 260px);
+  padding: 8px 4px 20px;
+}
+
+.trunk-stage__inner {
+  position: relative;
+}
+
+.trunk-edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.trunk-edges path {
+  fill: none;
+  stroke: var(--el-border-color);
+  stroke-width: 1.5;
+}
+
+.trunk-node {
+  position: absolute;
+  width: 208px;
+  min-height: 56px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.trunk-node:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.trunk-node.is-selected {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
+}
+
+.trunk-node--root {
+  cursor: default;
+  border-style: dashed;
+  background: var(--el-fill-color-lighter);
+}
+
+.trunk-node--branch {
+  border-color: var(--el-color-primary-light-7);
+}
+
+.trunk-node__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.trunk-node__kind {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.trunk-node__toggle {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--el-color-primary);
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.trunk-node__text {
+  font-size: 13px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.trunk-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trunk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+</style>

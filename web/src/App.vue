@@ -23,6 +23,7 @@ const notifyLoading = ref(false);
 let notifyTimer = null;
 
 const pageTitle = computed(() => route.meta.title || 'SuperAgentPlus');
+const logoUrl = `${import.meta.env.BASE_URL}logo.svg`;
 const currentProject = computed(
   () => projects.value.find((project) => project.project_id === selectedProjectId.value) || null,
 );
@@ -182,8 +183,11 @@ async function markAllNotificationsRead() {
   <el-container class="app-shell">
     <el-aside :width="collapsed ? '64px' : '232px'" class="app-aside">
       <div class="brand">
-        <span class="brand-name">SuperAgentPlus</span>
-        <span v-if="!collapsed" class="brand-sub">项目工作台</span>
+        <img class="brand-logo" :src="logoUrl" alt="SuperAgentPlus" />
+        <span v-if="!collapsed" class="brand-text">
+          <span class="brand-name">SuperAgentPlus</span>
+          <span class="brand-sub">项目工作台</span>
+        </span>
       </div>
 
       <el-menu
@@ -348,11 +352,25 @@ async function markAllNotificationsRead() {
 .brand {
   height: 56px;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--sap-border-soft);
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.brand-logo {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
 }
 
 .brand-name {
