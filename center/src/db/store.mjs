@@ -201,10 +201,27 @@ function ensureClaimLeaseColumns(db) {
  * 旧库的 impact_items 只允许关联主干变更，且 change_id 非空。
  * B 枝并入契约来源后，需要 change_id 可空并新增 source_type/source_id；
  * SQLite 无法直接放宽 NOT NULL，因此重建表并原样保留历史数据。
+ * 注意：重建必须保留 target_id——漏掉它会让登记影响项直接报错，且历史数据不可恢复。
  */
 function ensureImpactSourceColumns(db) {
   const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'impact_items'").get();
-  if (!row?.sql || row.sql.includes('source_type')) return;
+  if (!row?.sql) return;
+
+  const columns = db.prepare('PRAGMA table_info(impact_items)').all().map((c) => c.name);
+  const hasSource = columns.includes('source_type') && columns.includes('source_id');
+  const hasTarget = columns.includes('target_id');
+
+  // 已经重建过但漏了 target_id 的库：补列（历史值已丢失，只能置空）。
+  if (hasSource && !hasTarget) {
+    db.exec('ALTER TABLE impact_items ADD COLUMN target_id TEXT');
+    return;
+  }
+  if (hasSource && hasTarget) return;
+
+  const sourceExpr = hasSource ? 'source_type' : "'trunk_change'";
+  const sourceIdExpr = hasSource ? 'source_id' : 'change_id';
+  const targetExpr = hasTarget ? 'target_id' : 'NULL';
+
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN');
   try {
@@ -217,6 +234,7 @@ function ensureImpactSourceColumns(db) {
       target_type       TEXT NOT NULL
                         CHECK (target_type IN
                           ('task', 'submission', 'document', 'test', 'other')),
+      target_id         TEXT,
       assessment_status TEXT NOT NULL DEFAULT 'to_check'
                         CHECK (assessment_status IN
                           ('to_check', 'affected', 'not_affected')),
@@ -229,16 +247,16 @@ function ensureImpactSourceColumns(db) {
       created_at        TEXT NOT NULL
     )`);
     db.exec(`INSERT INTO impact_items_b (
-      impact_item_id, change_id, source_type, source_id, target_type,
+      impact_item_id, change_id, source_type, source_id, target_type, target_id,
       assessment_status, resolution, reason, owner_id, updated_at, created_at
-    ) SELECT impact_item_id, change_id, 'trunk_change', change_id, target_type,
+    ) SELECT impact_item_id, change_id, ${sourceExpr}, ${sourceIdExpr}, target_type, ${targetExpr},
              assessment_status, resolution, reason, owner_id, updated_at, created_at
       FROM impact_items`);
     db.exec('DROP TABLE impact_items');
     db.exec('ALTER TABLE impact_items_b RENAME TO impact_items');
-    db.exec('CREATE INDEX idx_impact_items_change ON impact_items (change_id)');
-    db.exec('CREATE INDEX idx_impact_items_assessment ON impact_items (assessment_status)');
-    db.exec('CREATE INDEX idx_impact_items_source ON impact_items (source_type, source_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_impact_items_change ON impact_items (change_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_impact_items_assessment ON impact_items (assessment_status)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_impact_items_source ON impact_items (source_type, source_id)');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
