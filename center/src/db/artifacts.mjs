@@ -211,12 +211,17 @@ export function artifactReferences(db, artifactId) {
       payload.task_ids.forEach((id) => taskIds.add(id));
     }
   }
+  // 2) 契约变更影响登记过该制品的目标任务，同样算作引用关系。
+  const impacted = db.prepare(`SELECT target_id FROM impact_items
+    WHERE source_type = 'artifact' AND source_id = ? AND target_type = 'task'`).all(artifactId);
+  for (const row of impacted) taskIds.add(row.target_id);
+
   const tasks = taskIds.size === 0
     ? []
     : db.prepare('SELECT task_id, purpose, status FROM tasks WHERE task_id IN ('
       + [...taskIds].map(() => '?').join(',') + ') ORDER BY created_at ASC').all(...taskIds);
 
-  // 2) 提交里的 artifacts 可能直接写制品 ID 或对象形式。
+  // 3) 提交里的 artifacts 可能直接写制品 ID 或对象形式。
   const candidates = db.prepare(`SELECT submission_id, task_id, submitted_by, submitted_at, artifacts
     FROM submissions WHERE task_id IN (SELECT task_id FROM tasks WHERE project_id = ?)
     ORDER BY submitted_at DESC`).all(artifact.project_id);

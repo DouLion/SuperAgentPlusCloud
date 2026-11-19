@@ -56,8 +56,20 @@ async function loadPacks() {
   }
 }
 
+const EXAMPLE_PACK_RULES = [
+  { key: 'api.methods.forbidden', title: '禁止 PUT/DELETE', severity: 'must', category: 'api', value: '{"methods":["put","delete"]}', rationale: '网关与审计只支持查询/动作式 POST。' },
+  { key: 'api.response', title: '统一响应包络', severity: 'must', category: 'api', value: '{"fields":["status","message","data"]}', rationale: '前端统一按包络解析。' },
+  { key: 'api.path.case', title: '路径 kebab-case', severity: 'must', category: 'api', value: '{"style":"kebab-case"}', rationale: '' },
+  { key: 'api.field.case', title: '字段 camelCase', severity: 'should', category: 'api', value: '{"style":"camelCase"}', rationale: '' },
+];
+
 function openPackDialog() {
-  Object.assign(packForm, { name: '', description: '', created_by: '', rules: [emptyRule()] });
+  Object.assign(packForm, {
+    name: '项目 API 约定',
+    description: '',
+    created_by: '',
+    rules: EXAMPLE_PACK_RULES.map((rule) => ({ ...rule })),
+  });
   packDialog.value = true;
 }
 
@@ -186,16 +198,6 @@ async function loadTemplates() {
     ElMessage.error(errorMessage(err, '加载编排模板失败'));
   } finally {
     templateLoading.value = false;
-  }
-}
-
-async function seedTemplates() {
-  try {
-    await api.seedWorkflowTemplates({ project_id: projectId, created_by: '面板' });
-    ElMessage.success('已导入内置 contract-first-api 模板');
-    await loadTemplates();
-  } catch (err) {
-    ElMessage.error(errorMessage(err, '导入内置模板失败'));
   }
 }
 
@@ -540,6 +542,27 @@ const IMPACT_RESOLUTION = {
   pending: '待定', continue: '继续', adjust: '调整', revalidate: '复验', obsolete: '作废',
 };
 
+async function seedImpact() {
+  if (!selectedArtifact.value) return;
+  try {
+    const tasks = await api.listTasks({ project_id: projectId });
+    const target = (tasks || [])[0];
+    if (!target) {
+      ElMessage.warning('项目还没有任务，先拆一个任务');
+      return;
+    }
+    await api.addArtifactImpact(selectedArtifact.value.artifact_id, {
+      target_type: 'task',
+      target_id: target.task_id,
+      owner_id: '面板',
+      reason: '契约新增接口，确认该任务是否受影响。',
+    });
+    await loadImpacts();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '创建示例影响项失败'));
+  }
+}
+
 async function loadImpacts() {
   if (!selectedArtifact.value) return;
   impactLoading.value = true;
@@ -610,6 +633,99 @@ function onTabChange(name) {
   if (name === 'impacts') loadImpacts();
 }
 
+// ------------------------------------------------------------ 示例数据
+// 空标签页不再写解释文字，直接用一条真实数据说明这里该有什么。
+
+const SAMPLE_RULES = [
+  { key: 'api.methods.forbidden', category: 'api', title: '禁止 PUT/DELETE', severity: 'must', value: { methods: ['put', 'delete'] }, rationale: '网关只支持查询与动作式 POST。' },
+  { key: 'api.response', category: 'api', title: '统一响应包络', severity: 'must', value: { fields: ['status', 'message', 'data'] }, rationale: '前端按同一包络解析。' },
+  { key: 'api.path.case', category: 'api', title: '路径 kebab-case', severity: 'must', value: { style: 'kebab-case' } },
+  { key: 'api.field.case', category: 'api', title: '字段 camelCase', severity: 'should', value: { style: 'camelCase' } },
+];
+
+const SAMPLE_CONTRACT = {
+  openapi: '3.1.0',
+  info: { title: '订单接口', version: '1.0.0' },
+  paths: {
+    '/orders/query': {
+      post: {
+        operationId: 'queryOrders',
+        summary: '按条件查询订单',
+        responses: {
+          200: { content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderListEnvelope' } } } },
+        },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      OrderListEnvelope: {
+        type: 'object',
+        required: ['status', 'message', 'data'],
+        properties: {
+          status: { type: 'integer', const: 1 },
+          message: { type: 'string', example: 'ok' },
+          data: { type: 'array', items: { $ref: '#/components/schemas/Order' } },
+        },
+      },
+      Order: { type: 'object', properties: { orderId: { type: 'string', example: 'O-1' } } },
+    },
+  },
+};
+
+const seeding = ref('');
+
+async function seedPack() {
+  seeding.value = 'pack';
+  try {
+    const pack = await api.createConventionPack({
+      name: 'API 约定',
+      description: '',
+      scope: 'project',
+      project_id: projectId,
+      created_by: '面板',
+      rules: SAMPLE_RULES,
+    });
+    await api.activateConventionPack(pack.pack_id, { activated_by: '面板', reason: '启用项目约定' });
+    await loadPacks();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '创建示例约定包失败'));
+  } finally {
+    seeding.value = '';
+  }
+}
+
+async function seedTemplates() {
+  seeding.value = 'templates';
+  try {
+    await api.seedWorkflowTemplates({ project_id: projectId, created_by: '面板' });
+    await loadTemplates();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '导入编排模板失败'));
+  } finally {
+    seeding.value = '';
+  }
+}
+
+async function seedContract() {
+  seeding.value = 'artifact';
+  try {
+    const artifact = await api.createArtifact({
+      project_id: projectId,
+      type: 'api_contract',
+      name: '订单接口',
+      created_by: '面板',
+      content: SAMPLE_CONTRACT,
+    });
+    await api.publishArtifact(artifact.artifact_id, { published_by: '面板', reason: '首版发布' });
+    await loadArtifacts();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '创建示例契约失败'));
+  } finally {
+    seeding.value = '';
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadPacks(), loadTemplates(), loadArtifacts()]);
 });
@@ -620,7 +736,6 @@ onMounted(async () => {
     <div class="page-header">
       <div>
         <h2 class="page-title">契约与制品</h2>
-        <div class="page-subtitle">约定包决定校验规则；同一份契约驱动接口文档与 Mock。</div>
       </div>
     </div>
 
@@ -694,7 +809,11 @@ onMounted(async () => {
           </el-table-column>
         </el-table>
 
-        <EmptyState v-if="!packLoading && packs.length === 0" description="还没有约定包，先新建一个或从团队模板导入" />
+        <EmptyState v-if="!packLoading && packs.length === 0" description="">
+          <el-button type="primary" plain :loading="seeding === 'pack'" @click="seedPack">
+            创建示例约定
+          </el-button>
+        </EmptyState>
 
         <el-card v-if="selectedPack" class="detail-card" shadow="never">
           <template #header>{{ selectedPack.name }} · 规则</template>
@@ -746,10 +865,11 @@ onMounted(async () => {
                 </template>
               </el-table-column>
             </el-table>
-            <EmptyState
-              v-if="!templateLoading && templates.length === 0"
-              description="还没有模板，可导入内置 contract-first-api"
-            />
+            <EmptyState v-if="!templateLoading && templates.length === 0" description="">
+              <el-button type="primary" plain :loading="seeding === 'templates'" @click="seedTemplates">
+                导入内置模板
+              </el-button>
+            </EmptyState>
           </el-col>
 
           <el-col :span="15">
@@ -855,7 +975,11 @@ onMounted(async () => {
                 <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
               </el-table-column>
             </el-table>
-            <EmptyState v-if="!artifactLoading && artifacts.length === 0" description="还没有 API 契约" />
+            <EmptyState v-if="!artifactLoading && artifacts.length === 0" description="">
+              <el-button type="primary" plain :loading="seeding === 'artifact'" @click="seedContract">
+                创建示例契约
+              </el-button>
+            </EmptyState>
           </el-col>
 
           <el-col :span="15">
@@ -916,7 +1040,7 @@ onMounted(async () => {
           type="warning"
           :closable="false"
           show-icon
-          title="当前契约尚未发布，Mock 只会使用已发布版本"
+          title="当前契约尚未发布"
           class="stack-gap"
         />
         <div class="toolbar">
@@ -942,7 +1066,7 @@ onMounted(async () => {
             </template>
           </el-table-column>
         </el-table>
-        <EmptyState v-if="!contractOperations.length" description="选择一份契约后可查看接口与 Mock" />
+        <EmptyState v-if="!contractOperations.length" description="" />
       </el-tab-pane>
 
       <!-- 引用关系 -->
@@ -1018,15 +1142,18 @@ onMounted(async () => {
           type="warning"
           :closable="false"
           show-icon
-          :title="`还有 ${pendingImpactCount} 条影响项待检查`"
-          description="契约升版后，引用旧版本的提交与任务需要逐项确认：继续、调整、复验或作废。"
+          :title="`待检查 ${pendingImpactCount} 条`"
           class="detail-card"
         />
 
         <EmptyState
           v-if="!impactLoading && impacts.length === 0"
-          description="没有影响项。发布新版本时，会自动为引用旧版本的提交与编排任务生成待检查项。"
-        />
+          description=""
+        >
+          <el-button type="primary" plain :disabled="!selectedArtifact" @click="seedImpact">
+            创建示例影响项
+          </el-button>
+        </EmptyState>
 
         <el-table v-else :data="impacts" size="small" v-loading="impactLoading">
           <el-table-column prop="target_type" label="对象类型" width="110" />
