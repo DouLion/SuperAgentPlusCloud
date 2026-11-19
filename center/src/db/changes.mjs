@@ -1,6 +1,7 @@
 // Center 主干变更与影响处置存储（T7 归置）。
 
 import { appendEvent } from './events.mjs';
+import { getArtifact } from './artifacts.mjs';
 import {
   IMPACT_ASSESSMENT_STATUSES,
   IMPACT_RESOLUTIONS,
@@ -26,8 +27,17 @@ import {
   required,
 } from './json.mjs';
 
-function parseTrunkChange(row) {
-  if (!row) return null;
+/** 影响项所属项目：主干变更取 change.project_id，契约取 artifact.project_id。 */
+function resolveImpactProjectId(db, impact) {
+  if (!impact) return null;
+  if (impact.source_type === 'artifact') {
+    return getArtifact(db, impact.source_id)?.project_id ?? null;
+  }
+  if (impact.change_id) return getTrunkChange(db, impact.change_id)?.project_id ?? null;
+  return null;
+}
+
+function parseTrunkChange(row) {  if (!row) return null;
   return {
     ...row,
     old_item_ids: decodeJson(row.old_item_ids, []),
@@ -376,9 +386,9 @@ export function closeTrunkChange(db, changeId) {
 }
 
 const INSERT_IMPACT_ITEM = `INSERT INTO impact_items (
-  impact_item_id, change_id, target_type, target_id, assessment_status,
-  resolution, reason, owner_id, updated_at, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  impact_item_id, change_id, source_type, source_id, target_type, target_id,
+  assessment_status, resolution, reason, owner_id, updated_at, created_at
+) VALUES (?, ?, 'trunk_change', ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /**
  * 登记影响项。target_type 允许 task/submission/document/test/other；
@@ -402,6 +412,7 @@ export function addImpactItem(db, input = {}) {
   const now = pick(input, 'created_at', 'createdAt') ?? nowIso();
   db.prepare(INSERT_IMPACT_ITEM).run(
     impactItemId,
+    changeId,
     changeId,
     targetType,
     targetId,
@@ -472,16 +483,19 @@ export function updateImpactItem(db, impactItemId, patch = {}) {
     impactItemId,
   );
 
-  appendEvent(db, {
-    project_id: getTrunkChange(db, existing.change_id).project_id,
-    object_type: 'impact_item',
-    object_id: impactItemId,
-    event_type: 'impact_item.updated',
-    actor: ownerId,
-    occurred_at: now,
-    reason: reason ?? existing.reason ?? `影响评估更新为 ${assessmentStatus}`,
-    refs: [existing.change_id, existing.target_id, impactItemId].filter(Boolean),
-  });
+  const projectId = resolveImpactProjectId(db, existing);
+  if (projectId) {
+    appendEvent(db, {
+      project_id: projectId,
+      object_type: 'impact_item',
+      object_id: impactItemId,
+      event_type: 'impact_item.updated',
+      actor: ownerId,
+      occurred_at: now,
+      reason: reason ?? existing.reason ?? `影响评估更新为 ${assessmentStatus}`,
+      refs: [existing.source_id, existing.target_id, impactItemId].filter(Boolean),
+    });
+  }
 
   return getImpactItem(db, impactItemId);
 }

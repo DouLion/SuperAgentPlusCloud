@@ -222,7 +222,10 @@ CREATE INDEX IF NOT EXISTS idx_trunk_changes_status
 -- 影响对象 ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS impact_items (
   impact_item_id    TEXT PRIMARY KEY,
-  change_id         TEXT NOT NULL REFERENCES trunk_changes (change_id),
+  change_id         TEXT REFERENCES trunk_changes (change_id),
+  source_type       TEXT NOT NULL DEFAULT 'trunk_change'
+                    CHECK (source_type IN ('trunk_change', 'artifact')),
+  source_id         TEXT,
   target_type       TEXT NOT NULL
                     CHECK (target_type IN
                       ('task', 'submission', 'document', 'test', 'other')),
@@ -243,6 +246,8 @@ CREATE INDEX IF NOT EXISTS idx_impact_items_change
   ON impact_items (change_id);
 CREATE INDEX IF NOT EXISTS idx_impact_items_assessment
   ON impact_items (assessment_status);
+CREATE INDEX IF NOT EXISTS idx_impact_items_source
+  ON impact_items (source_type, source_id);
 
 -- 事件与审计 --------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS events (

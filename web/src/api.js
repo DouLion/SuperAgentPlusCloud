@@ -214,6 +214,13 @@ export const api = {
   artifactDocumentUrl: (id) => `${BASE}${API_PREFIX}/artifacts/${encodeURIComponent(id)}/document`,
   artifactReferences: (id) => request('GET', `/artifacts/${encodeURIComponent(id)}/references`),
 
+  // 契约变更影响（B 枝）
+  listArtifactImpacts: (id, query) =>
+    request('GET', `/artifacts/${encodeURIComponent(id)}/impacts${queryString(query)}`),
+  addArtifactImpact: (id, input) =>
+    request('POST', `/artifacts/${encodeURIComponent(id)}/impacts`, input),
+  listImpacts: (query) => request('GET', `/impacts${queryString(query)}`),
+
   // 契约优先编排（T14）
   orchestrateRequirement: (id, input = {}) =>
     request('POST', `/requirements/${encodeURIComponent(id)}/orchestrate`, input),

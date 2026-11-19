@@ -2,6 +2,7 @@
 
 import crypto from 'node:crypto';
 import { appendEvent } from './events.mjs';
+import { addImpact, hasImpact } from './impacts.mjs';
 import { enqueueFromEvent } from '../protocol/outbox.mjs';
 import { ARTIFACT_STATUSES, ARTIFACT_TYPES } from './enums.mjs';
 import { assertProjectExists } from './projects.mjs';
@@ -101,6 +102,54 @@ export function listArtifacts(db, query = {}) {
       ORDER BY created_at DESC, version DESC, artifact_id DESC`).all(...params).map(parseArtifact);
 }
 
+/**
+ * 契约升版时生成待检查影响项（B 枝）。
+ * 目标：引用旧版本的提交、由旧版本编排建议创建的任务。
+ * 幂等：同来源 + 同目标已存在则跳过。返回新建数量。
+ */
+export function generateArtifactImpacts(db, artifactId, oldArtifactIds = []) {
+  const artifact = getArtifact(db, artifactId);
+  if (!artifact || oldArtifactIds.length === 0) return 0;
+  let created = 0;
+
+  for (const oldId of oldArtifactIds) {
+    const old = getArtifact(db, oldId);
+    const reason = `契约「${artifact.name}」由 v${old?.version ?? '?'} 升级到 v${artifact.version}，需要复核`;
+
+    // 1) 引用旧版本的提交
+    const submissions = db.prepare(`SELECT s.submission_id, s.artifacts FROM submissions s
+      JOIN tasks t ON t.task_id = s.task_id WHERE t.project_id = ?`).all(artifact.project_id);
+    for (const row of submissions) {
+      const refs = decodeJson(row.artifacts, []);
+      const hit = refs.some((item) => item === oldId || (item && item.artifact_id === oldId));
+      if (!hit) continue;
+      if (hasImpact(db, 'artifact', artifactId, 'submission', row.submission_id)) continue;
+      addImpact(db, {
+        source_type: 'artifact', source_id: artifactId,
+        target_type: 'submission', target_id: row.submission_id, reason,
+      });
+      created += 1;
+    }
+
+    // 2) 由旧版本编排建议创建的任务
+    const suggestions = db.prepare(`SELECT payload FROM ai_suggestions
+      WHERE project_id = ? AND kind = 'contract_orchestration'`).all(artifact.project_id);
+    for (const row of suggestions) {
+      const payload = decodeJson(row.payload, {});
+      if (payload?.artifact_id !== oldId || !Array.isArray(payload.task_ids)) continue;
+      for (const taskId of payload.task_ids) {
+        if (hasImpact(db, 'artifact', artifactId, 'task', taskId)) continue;
+        addImpact(db, {
+          source_type: 'artifact', source_id: artifactId,
+          target_type: 'task', target_id: taskId, reason,
+        });
+        created += 1;
+      }
+    }
+  }
+  return created;
+}
+
 export function publishArtifact(db, artifactId, patch = {}) {
   const artifact = getArtifact(db, artifactId);
   if (!artifact) throw Object.assign(new Error(`制品不存在：${artifactId}`), { status: 404 });
@@ -116,6 +165,11 @@ export function publishArtifact(db, artifactId, patch = {}) {
     const old = db.prepare(`SELECT artifact_id FROM artifacts
       WHERE project_id = ? AND type = ? AND name = ? AND status = 'published'`)
       .all(artifact.project_id, artifact.type, artifact.name);
+    // 影响分析覆盖该名称下所有既有版本：引用旧版的提交与任务都应被提示。
+    const priorIds = db.prepare(`SELECT artifact_id FROM artifacts
+      WHERE project_id = ? AND type = ? AND name = ? AND status IN ('published', 'superseded')`)
+      .all(artifact.project_id, artifact.type, artifact.name)
+      .map((row) => row.artifact_id);
     for (const row of old) {
       db.prepare("UPDATE artifacts SET status = 'superseded' WHERE artifact_id = ?").run(row.artifact_id);
     }
@@ -129,6 +183,8 @@ export function publishArtifact(db, artifactId, patch = {}) {
       refs: old.map((row) => row.artifact_id),
     });
     enqueueFromEvent(db, publishedEvent);
+    // 契约升版：为引用任一历史版本的提交与编排任务生成待检查影响项。
+    generateArtifactImpacts(db, artifactId, priorIds);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

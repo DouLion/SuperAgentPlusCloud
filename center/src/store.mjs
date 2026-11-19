@@ -18,6 +18,7 @@ export * from './db/definition-events.mjs';
 export * from './db/conventions.mjs';
 export * from './db/workflows.mjs';
 export * from './db/artifacts.mjs';
+export * from './db/impacts.mjs';
 export * from './db/actors.mjs';
 export * from './db/capabilities.mjs';
 export * from './db/dependencies.mjs';

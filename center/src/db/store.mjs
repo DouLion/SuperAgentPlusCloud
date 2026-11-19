@@ -185,6 +185,57 @@ function ensureClaimLeaseColumns(db) {
 }
 
 /**
+ * 旧库的 impact_items 只允许关联主干变更，且 change_id 非空。
+ * B 枝并入契约来源后，需要 change_id 可空并新增 source_type/source_id；
+ * SQLite 无法直接放宽 NOT NULL，因此重建表并原样保留历史数据。
+ */
+function ensureImpactSourceColumns(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'impact_items'").get();
+  if (!row?.sql || row.sql.includes('source_type')) return;
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(`CREATE TABLE impact_items_b (
+      impact_item_id    TEXT PRIMARY KEY,
+      change_id         TEXT REFERENCES trunk_changes (change_id),
+      source_type       TEXT NOT NULL DEFAULT 'trunk_change'
+                        CHECK (source_type IN ('trunk_change', 'artifact')),
+      source_id         TEXT,
+      target_type       TEXT NOT NULL
+                        CHECK (target_type IN
+                          ('task', 'submission', 'document', 'test', 'other')),
+      assessment_status TEXT NOT NULL DEFAULT 'to_check'
+                        CHECK (assessment_status IN
+                          ('to_check', 'affected', 'not_affected')),
+      resolution        TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (resolution IN
+                          ('continue', 'adjust', 'revalidate', 'obsolete', 'pending')),
+      reason            TEXT,
+      owner_id          TEXT,
+      updated_at        TEXT NOT NULL,
+      created_at        TEXT NOT NULL
+    )`);
+    db.exec(`INSERT INTO impact_items_b (
+      impact_item_id, change_id, source_type, source_id, target_type,
+      assessment_status, resolution, reason, owner_id, updated_at, created_at
+    ) SELECT impact_item_id, change_id, 'trunk_change', change_id, target_type,
+             assessment_status, resolution, reason, owner_id, updated_at, created_at
+      FROM impact_items`);
+    db.exec('DROP TABLE impact_items');
+    db.exec('ALTER TABLE impact_items_b RENAME TO impact_items');
+    db.exec('CREATE INDEX idx_impact_items_change ON impact_items (change_id)');
+    db.exec('CREATE INDEX idx_impact_items_assessment ON impact_items (assessment_status)');
+    db.exec('CREATE INDEX idx_impact_items_source ON impact_items (source_type, source_id)');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+}
+
+/**
  * 执行建表迁移；可重复执行（IF NOT EXISTS）。
  * @param {import('node:sqlite').DatabaseSync} [db] 缺省时打开默认库
  */
@@ -201,6 +252,7 @@ export function migrate(db = openStore()) {
   ensureContractOrchestrationSuggestionKind(db);
   ensureDefinitionEventTypes(db);
   ensureClaimLeaseColumns(db);
+  ensureImpactSourceColumns(db);
   ensureColumn(db, 'command_ledger', 'replay_count', 'INTEGER NOT NULL DEFAULT 0');
   return db;
 }

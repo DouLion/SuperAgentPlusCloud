@@ -418,6 +418,9 @@ async function publishSelected() {
       reason: '面板发布',
     });
     ElMessage.success(`契约 v${result.artifact.version} 已发布`);
+    if (result.impacts_created > 0) {
+      ElMessage.warning(`已生成 ${result.impacts_created} 条待检查影响，请到「变更影响」处置`);
+    }
     await loadArtifacts();
   } catch (err) {
     ElMessage.error(errorMessage(err, '发布失败'));
@@ -522,8 +525,89 @@ async function loadReferences() {
   }
 }
 
+// ------------------------------------------------------------ 变更影响（B 枝）
+const impacts = ref([]);
+const impactLoading = ref(false);
+const impactDraft = reactive({});
+const manualImpact = reactive({ target_type: 'task', target_id: '' });
+
+const pendingImpactCount = computed(
+  () => impacts.value.filter((row) => row.assessment_status === 'to_check').length,
+);
+
+const IMPACT_STATUS = { to_check: '待检查', affected: '受影响', not_affected: '确认无影响' };
+const IMPACT_RESOLUTION = {
+  pending: '待定', continue: '继续', adjust: '调整', revalidate: '复验', obsolete: '作废',
+};
+
+async function loadImpacts() {
+  if (!selectedArtifact.value) return;
+  impactLoading.value = true;
+  try {
+    impacts.value = await api.listArtifactImpacts(selectedArtifact.value.artifact_id);
+    for (const row of impacts.value) {
+      if (!impactDraft[row.impact_item_id]) {
+        impactDraft[row.impact_item_id] = {
+          assessment_status: row.assessment_status,
+          resolution: row.resolution,
+          reason: row.reason || '',
+        };
+      }
+    }
+  } catch (err) {
+    impacts.value = [];
+    ElMessage.error(errorMessage(err, '加载影响项失败'));
+  } finally {
+    impactLoading.value = false;
+  }
+}
+
+function draftOf(row) {
+  if (!impactDraft[row.impact_item_id]) {
+    impactDraft[row.impact_item_id] = {
+      assessment_status: row.assessment_status,
+      resolution: row.resolution,
+      reason: row.reason || '',
+    };
+  }
+  return impactDraft[row.impact_item_id];
+}
+
+async function saveImpact(row) {
+  const draft = draftOf(row);
+  try {
+    await api.updateImpactItem(row.impact_item_id, {
+      assessment_status: draft.assessment_status,
+      resolution: draft.resolution,
+      reason: draft.reason || undefined,
+      owner_id: '面板',
+    });
+    ElMessage.success('影响项已更新');
+    delete impactDraft[row.impact_item_id];
+    await loadImpacts();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '更新影响项失败'));
+  }
+}
+
+async function addImpactManually(row) {
+  try {
+    await api.addArtifactImpact(selectedArtifact.value.artifact_id, {
+      target_type: row.target_type,
+      target_id: row.target_id,
+      owner_id: '面板',
+    });
+    ElMessage.success('影响项已登记');
+    manualImpact.target_id = '';
+    await loadImpacts();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '登记影响项失败'));
+  }
+}
+
 function onTabChange(name) {
   if (name === 'references') loadReferences();
+  if (name === 'impacts') loadImpacts();
 }
 
 onMounted(async () => {
@@ -915,6 +999,95 @@ onMounted(async () => {
               复制
             </el-button>
           </div>
+        </el-card>
+      </el-tab-pane>
+
+      <!-- 变更影响（B 枝） -->
+      <el-tab-pane label="变更影响" name="impacts">
+        <div class="toolbar">
+          <el-button plain :loading="impactLoading" :disabled="!selectedArtifact" @click="loadImpacts">
+            刷新影响项
+          </el-button>
+          <span class="muted">
+            当前契约：{{ selectedArtifact ? `${selectedArtifact.name} · v${selectedArtifact.version}` : '未选择' }}
+          </span>
+        </div>
+
+        <el-alert
+          v-if="pendingImpactCount > 0"
+          type="warning"
+          :closable="false"
+          show-icon
+          :title="`还有 ${pendingImpactCount} 条影响项待检查`"
+          description="契约升版后，引用旧版本的提交与任务需要逐项确认：继续、调整、复验或作废。"
+          class="detail-card"
+        />
+
+        <EmptyState
+          v-if="!impactLoading && impacts.length === 0"
+          description="没有影响项。发布新版本时，会自动为引用旧版本的提交与编排任务生成待检查项。"
+        />
+
+        <el-table v-else :data="impacts" size="small" v-loading="impactLoading">
+          <el-table-column prop="target_type" label="对象类型" width="110" />
+          <el-table-column prop="target_id" label="对象" min-width="180" show-overflow-tooltip />
+          <el-table-column label="评估" width="150">
+            <template #default="{ row }">
+              <el-select v-model="draftOf(row).assessment_status" size="small">
+                <el-option label="待检查" value="to_check" />
+                <el-option label="受影响" value="affected" />
+                <el-option label="确认无影响" value="not_affected" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="处置" width="140">
+            <template #default="{ row }">
+              <el-select v-model="draftOf(row).resolution" size="small">
+                <el-option label="待定" value="pending" />
+                <el-option label="继续" value="continue" />
+                <el-option label="调整" value="adjust" />
+                <el-option label="复验" value="revalidate" />
+                <el-option label="作废" value="obsolete" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="理由" min-width="200">
+            <template #default="{ row }">
+              <el-input
+                v-model="draftOf(row).reason"
+                size="small"
+                placeholder="确认无影响时必须填写"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="110" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" type="primary" plain @click="saveImpact(row)">保存</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-card v-if="selectedArtifact" shadow="never" class="detail-card">
+          <template #header>人工登记影响项</template>
+          <el-form :inline="true" :model="manualImpact" size="small">
+            <el-form-item label="对象类型">
+              <el-select v-model="manualImpact.target_type" style="width: 140px">
+                <el-option label="任务" value="task" />
+                <el-option label="提交" value="submission" />
+                <el-option label="文档" value="document" />
+                <el-option label="测试" value="test" />
+                <el-option label="其他" value="other" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="对象 ID">
+              <el-input v-model="manualImpact.target_id" placeholder="task_ / sub_ / doc-…" style="width: 260px" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" plain :disabled="!manualImpact.target_id" @click="addImpactManually(manualImpact)">
+                登记
+              </el-button>
+            </el-form-item>
+          </el-form>
         </el-card>
       </el-tab-pane>
     </el-tabs>

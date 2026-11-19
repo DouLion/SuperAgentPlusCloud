@@ -87,9 +87,11 @@ const judgeQueue = computed(() => {
       items.push({
         key: impact.impact_item_id,
         title: `待检查影响：${impact.target_type} ${impact.target_id}`,
-        note: `变更 ${changeId}`,
+        note: impact.source_type === 'artifact' ? `契约 ${impact.source_id}` : `变更 ${changeId}`,
         meta: [{ group: 'impactAssessment', value: 'to_check' }],
-        to: { name: 'changes', params: { id: projectId } },
+        to: impact.source_type === 'artifact'
+          ? { name: 'contracts', params: { id: projectId } }
+          : { name: 'changes', params: { id: projectId } },
       });
     }
   }
@@ -164,6 +166,17 @@ async function load() {
     events.value = eventRows;
     await Promise.all(changeRows.filter((change) => change.status !== 'closed')
       .map((change) => loadImpacts(change.change_id)));
+
+    // 契约变更（B 枝）的影响项也计入待办与统计。
+    try {
+      const artifactRows = await api.listImpacts({ project_id: projectId });
+      impactMap.value = {
+        ...impactMap.value,
+        artifacts: artifactRows.filter((item) => item.source_type === 'artifact'),
+      };
+    } catch {
+      impactMap.value = { ...impactMap.value, artifacts: [] };
+    }
 
     const [actorResult, stuckResult] = await Promise.all([
       api.observabilityActors().catch(() => ({ actors: [] })),

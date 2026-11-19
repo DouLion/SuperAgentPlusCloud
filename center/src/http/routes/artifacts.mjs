@@ -9,6 +9,7 @@ import {
   retireArtifact,
 } from '../../db/artifacts.mjs';
 import { activeConventionRules, renderOpenApiHtml, validateOpenApi } from '../../contracts/openapi.mjs';
+import { addImpact, countPendingImpacts, listImpacts } from '../../db/impacts.mjs';
 import { assertCan, stampActorType } from '../../auth/policy.mjs';
 
 function requireArtifact(db, id) {
@@ -73,7 +74,39 @@ export const ROUTES = [
       if (!payload.reason) payload.reason = '发布制品';
       const published = publishArtifact(db, params.id, payload);
       stampActorType(db, 'artifacts', 'artifact_id', params.id, auth.actor_type);
-      return { status: 200, body: { artifact: { ...published, published_actor_type: auth.actor_type }, validation } };
+      const impactsCreated = countPendingImpacts(db, 'artifact', params.id);
+      return {
+        status: 200,
+        body: {
+          artifact: { ...published, published_actor_type: auth.actor_type },
+          validation,
+          impacts_created: impactsCreated,
+        },
+      };
+    },
+  },
+  {
+    method: 'GET', pattern: '/artifacts/:id/impacts',
+    handler: ({ db, params, url }) => {
+      const artifact = getArtifact(db, params.id);
+      if (!artifact) return { status: 404, body: { error: `制品不存在：${params.id}` } };
+      const query = { source_type: 'artifact', source_id: params.id };
+      for (const key of ['assessment_status', 'target_type']) {
+        const value = url.searchParams.get(key);
+        if (value) query[key] = value;
+      }
+      return listImpacts(db, query);
+    },
+  },
+  {
+    method: 'POST', pattern: '/artifacts/:id/impacts',
+    handler: ({ db, params, body }) => {
+      const artifact = getArtifact(db, params.id);
+      if (!artifact) return { status: 404, body: { error: `制品不存在：${params.id}` } };
+      return {
+        status: 201,
+        body: addImpact(db, { ...body, source_type: 'artifact', source_id: params.id }),
+      };
     },
   },
   {
