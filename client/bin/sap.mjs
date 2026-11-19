@@ -25,6 +25,8 @@ import { run as runOrchestrate } from '../src/commands/orchestrate.mjs';
 import { run as runActor } from '../src/commands/actor.mjs';
 import { run as runDelegate } from '../src/commands/delegate.mjs';
 import { run as runMember } from '../src/commands/member.mjs';
+import { run as runCommand } from '../src/commands/command.mjs';
+import { run as runOutbox } from '../src/commands/outbox.mjs';
 
 /** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
 function extractToken(argv) {
@@ -73,6 +75,8 @@ const handlers = new Map([
   ['actor', runActor],
   ['delegate', runDelegate],
   ['member', runMember],
+  ['command', runCommand],
+  ['outbox', runOutbox],
 ]);
 
 function main(argv) {

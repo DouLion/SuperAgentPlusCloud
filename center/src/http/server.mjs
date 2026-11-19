@@ -19,6 +19,25 @@ import { ROUTES as WORKFLOW_ROUTES } from './routes/workflows.mjs';
 import { ROUTES as ARTIFACT_ROUTES } from './routes/artifacts.mjs';
 import { ROUTES as ACTOR_ROUTES } from './routes/actors.mjs';
 import { ROUTES as MOCK_ROUTES } from './routes/mock.mjs';
+import { ROUTES as PROTOCOL_ROUTES } from './routes/protocol.mjs';
+import {
+  CURRENT_PROTOCOL_VERSION,
+  PROTOCOL_VERSION_HEADER,
+  assertProtocolVersion,
+} from '../protocol/version.mjs';
+import {
+  REPLAY_HEADER,
+  actorIdForRequest,
+  commandId,
+  finishCommand,
+  findCommand,
+  idempotencyConflict,
+  isReplayable,
+  isWriteMethod,
+  payloadDigest,
+  releaseCommand,
+  reserveCommand,
+} from '../protocol/idempotency.mjs';
 
 /** 把 pathname 按 '/' 切分，忽略结尾斜杠。 */
 export function segments(pathname) {
@@ -89,6 +108,7 @@ export const ROUTES = [
   ...ARTIFACT_ROUTES,
   ...ACTOR_ROUTES,
   ...MOCK_ROUTES,
+  ...PROTOCOL_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */
@@ -279,8 +299,69 @@ function withPathname(rawUrl, pathname) {
   return next;
 }
 
+/** 把 handler 返回值统一成「状态码 + 文本 + 内容类型」。 */
+function toResponse(result) {
+  if (result && typeof result.status === 'number'
+    && Object.prototype.hasOwnProperty.call(result, 'raw')) {
+    return {
+      status: result.status,
+      contentType: result.content_type || 'text/plain; charset=utf-8',
+      bodyText: String(result.raw ?? ''),
+      headers: result.headers || {},
+    };
+  }
+  if (result && typeof result.status === 'number'
+    && Object.prototype.hasOwnProperty.call(result, 'body')) {
+    return {
+      status: result.status,
+      contentType: 'application/json; charset=utf-8',
+      bodyText: JSON.stringify(result.body ?? null),
+      headers: result.headers || {},
+    };
+  }
+  return {
+    status: 200,
+    contentType: 'application/json; charset=utf-8',
+    bodyText: JSON.stringify(result ?? null),
+    headers: {},
+  };
+}
+
+/** 按统一响应表示写回。 */
+function sendResponse(res, response, method) {
+  const data = Buffer.from(response.bodyText ?? '', 'utf8');
+  res.writeHead(response.status, {
+    ...response.headers,
+    'content-type': response.contentType,
+    'content-length': data.length,
+  });
+  res.end(method === 'HEAD' ? undefined : data);
+}
+
+/** 回放账本里记录的首次结果。 */
+function sendRecorded(res, row) {
+  res.setHeader(REPLAY_HEADER, '1');
+  let headers = {};
+  try {
+    headers = JSON.parse(row.response_headers || '{}');
+  } catch {
+    headers = {};
+  }
+  const data = Buffer.from(row.response_body ?? '', 'utf8');
+  res.writeHead(row.status_code, {
+    ...headers,
+    'content-type': row.content_type || 'application/json; charset=utf-8',
+    'content-length': data.length,
+  });
+  res.end(data);
+}
+
 /** 处理已剥掉 API 前缀的请求；返回 true 表示已响应。 */
 async function handleApiRequest(req, res, routes, db, url, pathForMessage) {
+  // 协议版本：所有 API 请求统一校验，并在响应里回显。
+  assertProtocolVersion(req);
+  res.setHeader(PROTOCOL_VERSION_HEADER, String(CURRENT_PROTOCOL_VERSION));
+
   const { route, params, allowed, pathMatched } = matchRoute(routes, req.method, url.pathname);
 
   if (!route) {
@@ -307,27 +388,53 @@ async function handleApiRequest(req, res, routes, db, url, pathForMessage) {
   }
 
   const body = await readJsonBody(req);
-  const result = await route.handler({ req, url, body, params, db });
 
-  // 显式 raw 包装返回非 JSON（接口文档）；显式 body 包装返回 JSON；
-  // 其余视为普通数据行（业务行可能自身含有 status 字段）。
-  if (result && typeof result.status === 'number' && Object.prototype.hasOwnProperty.call(result, 'raw')) {
-    const data = Buffer.from(String(result.raw), 'utf8');
-    res.writeHead(result.status, {
-      'content-type': result.content_type || 'text/plain; charset=utf-8',
-      'content-length': data.length,
-      ...(result.headers || {}),
+  // 幂等：仅写方法且显式提供 command_id 时启用；GET 不记账。
+  const write = isWriteMethod(req.method);
+  const cmdId = write ? commandId(req, body) : null;
+  let reserved = false;
+
+  if (cmdId) {
+    const digest = payloadDigest(req.method, pathForMessage, body);
+    const existing = findCommand(db, cmdId);
+    if (existing) {
+      if (existing.payload_digest !== digest) throw idempotencyConflict(cmdId);
+      if (isReplayable(existing)) {
+        sendRecorded(res, existing);
+        return true;
+      }
+      // 上次执行未完成（崩溃或超时）：释放预占后重新执行。
+      releaseCommand(db, cmdId);
+    }
+    reserved = reserveCommand(db, {
+      command_id: cmdId,
+      actor_id: actorIdForRequest(db, req),
+      method: req.method,
+      path: pathForMessage,
+      payload_digest: digest,
     });
-    res.end(req.method === 'HEAD' ? undefined : data);
-  } else if (
-    result
-    && typeof result.status === 'number'
-    && Object.prototype.hasOwnProperty.call(result, 'body')
-  ) {
-    sendJson(res, result.status, result.body, result.headers || {});
-  } else {
-    sendJson(res, 200, result);
   }
+
+  let result;
+  try {
+    result = await route.handler({ req, url, body, params, db });
+  } catch (error) {
+    // 执行失败不占用命令键，允许同键重试。
+    if (reserved) releaseCommand(db, cmdId);
+    throw error;
+  }
+
+  const response = toResponse(result);
+  if (reserved) {
+    finishCommand(db, {
+      command_id: cmdId,
+      status_code: response.status,
+      response_body: response.bodyText,
+      content_type: response.contentType,
+      response_headers: response.headers,
+    });
+  }
+  sendResponse(res, response, req.method);
   return true;
 }
 

@@ -438,3 +438,35 @@ CREATE TABLE IF NOT EXISTS project_members (
 
 CREATE INDEX IF NOT EXISTS idx_members_project ON project_members (project_id);
 
+-- 协议层（P3）----------------------------------------------------------------
+-- 命令账本：同 command_id + 同摘要返回首次结果，同键异摘要视为冲突。
+CREATE TABLE IF NOT EXISTS command_ledger (
+  command_id      TEXT PRIMARY KEY,
+  actor_id        TEXT NOT NULL DEFAULT 'legacy',
+  method          TEXT NOT NULL,
+  path            TEXT NOT NULL,
+  payload_digest  TEXT NOT NULL,
+  status_code     INTEGER NOT NULL,
+  response_body   TEXT NOT NULL,
+  content_type    TEXT NOT NULL DEFAULT 'application/json; charset=utf-8',
+  response_headers TEXT NOT NULL DEFAULT '{}',
+  created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_command_ledger_created ON command_ledger (created_at);
+
+-- 事件投递：至少一次投递 + 消费端按 event_id 去重。
+CREATE TABLE IF NOT EXISTS outbox (
+  event_id     TEXT PRIMARY KEY,
+  topic        TEXT NOT NULL,
+  payload      TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  available_at TEXT NOT NULL,
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  last_error   TEXT,
+  delivered_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_available ON outbox (available_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_delivered ON outbox (delivered_at);
+

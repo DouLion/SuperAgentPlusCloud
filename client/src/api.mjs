@@ -1,10 +1,16 @@
 // Center HTTP 客户端（T2）：客户端唯一发出请求的地方。
 // 零第三方依赖，使用 Node 26 内置 fetch；非 2xx 抛错并携带服务端 error 文本。
 
+import crypto from 'node:crypto';
 import { DEFAULT_CENTER_URL } from './help.mjs';
 
 /** 接口统一前缀（见 docs/08 §1）；CENTER_URL 只表示 origin。 */
 export const API_PREFIX = '/sap-cloud/api';
+
+/** 当前协议版本；与 Center 的 SUPPORTED_PROTOCOL_VERSIONS 对齐。 */
+export const PROTOCOL_VERSION = 1;
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** 解析 Center 地址；CENTER_URL 可覆盖，默认 http://127.0.0.1:8787。 */
 export function resolveCenterUrl(env = process.env) {
@@ -40,6 +46,16 @@ export async function apiRequest(method, path, body, options = {}) {
   // token 优先级：显式 options.token > 环境变量 SAP_TOKEN。缺失时不发送该头（兼容 legacy 模式）。
   const token = options.token ?? env.SAP_TOKEN ?? '';
   if (token) init.headers.authorization = `Bearer ${token}`;
+
+  // 协议版本与幂等键：写操作默认生成 command_id，便于超时后查询而不是盲目重试。
+  const methodUpper = String(method).toUpperCase();
+  init.headers['x-sap-protocol-version'] = String(options.protocolVersion ?? PROTOCOL_VERSION);
+  if (WRITE_METHODS.has(methodUpper)) {
+    const explicit = options.commandId ?? env.SAP_COMMAND_ID
+      ?? body?.command_id ?? body?.commandId;
+    init.headers['x-sap-command-id'] = explicit || crypto.randomUUID();
+  }
+
   if (body !== undefined) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -313,7 +329,8 @@ export const api = {
     apiRequest('POST', `/projects/${encodeURIComponent(projectId)}/members`, input, options),
 
   listConventionPacks: (query, options) =>
-    apiRequest('GET', `/convention-packs${queryString(query)}`, undefined, options),  getConventionPack: (id, options) =>
+    apiRequest('GET', `/convention-packs${queryString(query)}`, undefined, options),
+  getConventionPack: (id, options) =>
     apiRequest('GET', `/convention-packs/${encodeURIComponent(id)}`, undefined, options),
   createConventionPack: (input, options) =>
     apiRequest('POST', '/convention-packs', input, options),
@@ -348,4 +365,11 @@ export const api = {
     apiRequest('POST', `/artifacts/${encodeURIComponent(id)}/publish`, input, options),
   retireArtifact: (id, input, options) =>
     apiRequest('POST', `/artifacts/${encodeURIComponent(id)}/retire`, input, options),
+
+  // 协议层（P3）：未知结果查询与事件投递。
+  getCommandResult: (id, options) =>
+    apiRequest('GET', `/command-results/${encodeURIComponent(id)}`, undefined, options),
+  listOutbox: (query, options) =>
+    apiRequest('GET', `/outbox${queryString(query)}`, undefined, options),
+  dispatchOutbox: (input = {}, options) => apiRequest('POST', '/outbox/dispatch', input, options),
 };

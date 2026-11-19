@@ -2,6 +2,7 @@
 // 认领是有期限的权利：过期或撤销后旧 token 不可再写入。
 
 import { appendEvent } from './events.mjs';
+import { enqueueFromEvent } from '../protocol/outbox.mjs';
 import { getTask } from './tasks.mjs';
 import {
   codedError,
@@ -118,7 +119,7 @@ export function claimTask(db, taskId, actorId, options = {}) {
       nextToken, role === 'owner' ? attemptNo : 1, now,
     );
 
-    appendEvent(db, {
+    const claimedEvent = appendEvent(db, {
       project_id: task.project_id,
       object_type: 'task',
       object_id: taskId,
@@ -128,6 +129,7 @@ export function claimTask(db, taskId, actorId, options = {}) {
       reason: role === 'owner' ? '认领任务' : '作为协作者加入任务',
       refs: [taskId, claimId],
     });
+    enqueueFromEvent(db, claimedEvent);
 
     db.exec('COMMIT');
   } catch (err) {
@@ -175,7 +177,7 @@ function expireClaim(db, claim, reason) {
   }
   const task = getTask(db, claim.task_id);
   if (task) {
-    appendEvent(db, {
+    const expiredEvent = appendEvent(db, {
       project_id: task.project_id,
       object_type: 'task',
       object_id: claim.task_id,
@@ -185,6 +187,7 @@ function expireClaim(db, claim, reason) {
       reason,
       refs: [claim.claim_id],
     });
+    enqueueFromEvent(db, expiredEvent);
   }
 }
 

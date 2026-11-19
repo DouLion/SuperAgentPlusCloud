@@ -1,6 +1,7 @@
 // Center 需求、评估与决定存储（T7 归置）。
 
 import { listEvents, appendEvent } from './events.mjs';
+import { enqueueFromEvent } from '../protocol/outbox.mjs';
 import {
   ASSESSMENT_LEVELS,
   ASSESSOR_TYPES,
@@ -358,7 +359,7 @@ export function createDecision(db, input = {}) {
     });
   }
 
-  appendEvent(db, {
+  const decidedEvent = appendEvent(db, {
     project_id: requirement.project_id,
     object_type: 'decision',
     object_id: decisionId,
@@ -368,6 +369,7 @@ export function createDecision(db, input = {}) {
     reason: pick(input, 'reason'),
     refs: [requirementId],
   });
+  enqueueFromEvent(db, decidedEvent);
 
   return db.prepare('SELECT * FROM decisions WHERE decision_id = ?').get(decisionId);
 }

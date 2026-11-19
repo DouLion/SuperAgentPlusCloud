@@ -1,6 +1,7 @@
 // Center 提交与评审存储（T7 归置）。
 
 import { appendEvent } from './events.mjs';
+import { enqueueFromEvent } from '../protocol/outbox.mjs';
 import { REVIEW_CONCLUSIONS } from './enums.mjs';
 import { assertClaimValid, activeOwnerClaim } from './claims.mjs';
 import { getTask } from './tasks.mjs';
@@ -124,7 +125,7 @@ export function createSubmission(db, input = {}) {
         .run(taskId);
     }
 
-    appendEvent(db, {
+    const submissionEvent = appendEvent(db, {
       project_id: task.project_id,
       object_type: 'submission',
       object_id: submissionId,
@@ -134,6 +135,7 @@ export function createSubmission(db, input = {}) {
       reason: summary,
       refs: [taskId, claim.claim_id],
     });
+    enqueueFromEvent(db, submissionEvent);
 
     const submission = getSubmission(db, submissionId);
     db.exec('COMMIT');
@@ -259,7 +261,8 @@ export function createReview(db, input = {}) {
 
     if (conclusion === 'confirm') {
       db.prepare(`UPDATE tasks SET status = 'accepted' WHERE task_id = ?`).run(task.task_id);
-      appendEvent(db, { ...reviewEvent, event_type: 'review.confirmed', reason: reason ?? null });
+      const confirmedEvent = appendEvent(db, { ...reviewEvent, event_type: 'review.confirmed', reason: reason ?? null });
+      enqueueFromEvent(db, confirmedEvent);
     } else if (conclusion === 'reject') {
       db.prepare(`UPDATE tasks SET status = 'rework' WHERE task_id = ?`).run(task.task_id);
 
@@ -280,7 +283,8 @@ export function createReview(db, input = {}) {
         });
       }
 
-      appendEvent(db, { ...reviewEvent, event_type: 'review.rejected', reason: reason ?? null });
+      const rejectedEvent = appendEvent(db, { ...reviewEvent, event_type: 'review.rejected', reason: reason ?? null });
+      enqueueFromEvent(db, rejectedEvent);
     } else {
       // needs_info：任务保持 submitted，等待补充信息后重新评审。
       appendEvent(db, {

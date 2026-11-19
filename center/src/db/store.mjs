@@ -15,6 +15,8 @@ export const DEFAULT_DB_PATH = path.join(PACKAGE_ROOT, 'data', 'center.db');
 
 // reset() 按依赖倒序删表；表名硬编码以避免解析 SQL 文本。
 const TABLES = [
+  'outbox',
+  'command_ledger',
   'project_members',
   'delegations',
   'actor_credentials',

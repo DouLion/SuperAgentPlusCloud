@@ -2,6 +2,7 @@
 
 import crypto from 'node:crypto';
 import { appendEvent } from './events.mjs';
+import { enqueueFromEvent } from '../protocol/outbox.mjs';
 import { ARTIFACT_STATUSES, ARTIFACT_TYPES } from './enums.mjs';
 import { assertProjectExists } from './projects.mjs';
 import {
@@ -122,11 +123,12 @@ export function publishArtifact(db, artifactId, patch = {}) {
     db.prepare(`UPDATE artifacts SET status = 'published', published_by = ?,
       published_at = ?, supersedes = ? WHERE artifact_id = ?`)
       .run(actor, now, supersedes, artifactId);
-    appendEvent(db, {
+    const publishedEvent = appendEvent(db, {
       project_id: artifact.project_id, object_type: 'artifact', object_id: artifactId,
       event_type: 'artifact.published', actor, occurred_at: now, reason,
       refs: old.map((row) => row.artifact_id),
     });
+    enqueueFromEvent(db, publishedEvent);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

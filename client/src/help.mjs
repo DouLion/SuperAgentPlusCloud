@@ -29,6 +29,8 @@ export const IMPLEMENTED_COMMANDS = [
   'actor',
   'delegate',
   'member',
+  'command',
+  'outbox',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -171,6 +173,18 @@ export const PLANNED_COMMANDS = [
     desc: 'P1 项目成员与角色：owner/contributor/reviewer/direction/publisher/observer',
     implemented: true,
   },
+  {
+    name: 'command',
+    usage: 'sap command result --id <command_id>',
+    desc: 'P3 命令结果查询：请求超时后先查结果，不要盲目重试写操作',
+    implemented: true,
+  },
+  {
+    name: 'outbox',
+    usage: 'sap outbox list [--status pending|delivered] [--limit 50] ｜ sap outbox dispatch [--limit 50]',
+    desc: 'P3 事件投递箱：查看待投递事件并派发',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -184,10 +198,11 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     `Center 地址：${centerUrl}（环境变量 CENTER_URL 可覆盖）`,
     '',
     '鉴权：设置 SAP_TOKEN 或追加 --token <token>（人类专属动作必须使用 human 凭据）。',
+    '幂等：写操作自动带 command_id；超时后用 sap command result --id <id> 查结果。',
     '',
     '可用命令：',
     ...lines,
     '',
-    '当前进度：P1 身份与授权 —— 主体、凭据、委派与项目成员；人类专属动作需要 human 凭据。',
+    '当前进度：P3 协议层 —— 命令账本（幂等）、协议版本、未知结果查询与 outbox 投递。',
   ].join('\n');
 }
