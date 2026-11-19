@@ -43,11 +43,15 @@ export function listRepositories(db, query = {}) {
     ORDER BY created_at ASC, repository_id ASC`).all(...params);
 }
 
-/** 新建仓库；同一项目内 URL 唯一。 */
+/** 新建仓库；同一项目内 URL 唯一。url 与 local_path 至少要有一个。 */
 export function createRepository(db, input = {}) {
   const projectId = required(input, 'project_id', 'projectId');
   const name = required(input, 'name');
-  const url = required(input, 'url');
+  const localPath = pick(input, 'local_path', 'localPath') ?? null;
+  const url = pick(input, 'url') ?? (localPath ? `file://${localPath}` : null);
+  if (!url) {
+    throw codedError('REPOSITORY_SOURCE_REQUIRED', '仓库需要 url 或 local_path', 400);
+  }
   assertProjectExists(db, projectId);
 
   const provider = pick(input, 'provider') ?? detectProvider(url);
