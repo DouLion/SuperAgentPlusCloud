@@ -205,7 +205,6 @@ onMounted(load);
     <div class="page-header">
       <div>
         <h2 class="page-title">项目驾驶舱</h2>
-        <div class="page-subtitle">项目是什么、哪里变了、下一步找谁——30 秒内看懂。</div>
       </div>
       <el-button size="small" @click="load">
         <el-icon><Refresh /></el-icon>

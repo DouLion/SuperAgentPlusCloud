@@ -194,9 +194,6 @@ onMounted(load);
     <div class="page-header">
       <div>
         <h2 class="page-title">任务工作台</h2>
-        <div class="page-subtitle">
-          先看清完成条件再认领；认领是承诺，不是抢单。
-        </div>
       </div>
       <el-button size="small" @click="load">
         <el-icon><Refresh /></el-icon>
@@ -312,13 +309,6 @@ onMounted(load);
           </el-select>
         </el-form-item>
       </el-form>
-      <el-alert
-        type="info"
-        show-icon
-        :closable="false"
-        title="认领是承诺，不是抢单"
-        description="租约到期未续租会自动回到可认领；旧令牌之后不能再提交。"
-      />
       <template #footer>
         <el-button @click="claimVisible = false">取消</el-button>
         <el-button type="primary" :loading="claimSubmitting" @click="submitClaim">

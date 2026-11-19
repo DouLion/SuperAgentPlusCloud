@@ -705,9 +705,6 @@ onMounted(load);
     <div class="page-header">
       <div>
         <h2 class="page-title">项目列表</h2>
-        <div class="page-subtitle">
-          进入项目后 30 秒内应能知道：项目当前是什么、哪里变了、下一步找谁。
-        </div>
       </div>
       <div class="toolbar">
         <el-button type="primary" plain :loading="creatingDemo" @click="createDemo">
@@ -721,7 +718,7 @@ onMounted(load);
       </div>
     </div>
 
-    <EmptyState v-if="!loading && rows.length === 0" description="还没有项目，可以新建，或先创建一个演示项目看看">
+    <EmptyState v-if="!loading && rows.length === 0" description="">
       <el-button type="primary" plain :loading="creatingDemo" @click="createDemo">创建演示项目</el-button>
       <el-button type="primary" plain @click="openCreate">新建项目</el-button>
     </EmptyState>

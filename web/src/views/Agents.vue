@@ -17,12 +17,25 @@ const tokenVisible = ref(false);
 
 const createVisible = ref(false);
 const creating = ref(false);
+const seedingActor = ref(false);
 const createForm = reactive({
   type: 'human',
   display_name: '',
   on_behalf_of: '',
   created_by: '',
 });
+
+async function seedActor() {
+  seedingActor.value = true;
+  try {
+    await api.createActor({ type: 'human', display_name: '示例负责人', created_by: '面板' });
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '创建示例主体失败'));
+  } finally {
+    seedingActor.value = false;
+  }
+}
 
 const credentialVisible = ref(false);
 const issuing = ref(false);
@@ -324,9 +337,6 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2 class="page-title">主体与在线状态</h2>
-        <div class="page-subtitle">
-          人类、Agent 与服务账号在这里登记；能力只影响推荐，不产生授权。
-        </div>
       </div>
       <div class="toolbar">
         <el-button size="small" @click="load(); loadStuck()">
@@ -345,8 +355,7 @@ onMounted(() => {
       type="warning"
       show-icon
       :closable="false"
-      title="当前为匿名操作"
-      description="身份管理、签发凭据与能力设置需要人类令牌。请在下方填入令牌后保存；读取类信息不受影响。"
+      title="未保存令牌"
       style="margin-bottom: 12px"
     />
 
@@ -371,7 +380,9 @@ onMounted(() => {
         <span class="panel__title">主体</span>
         <span class="panel__count">{{ actors.length }}</span>
       </div>
-      <EmptyState v-if="!loading && actors.length === 0" description="还没有主体，先创建一个人类主体" :height="'140px'" />
+      <EmptyState v-if="!loading && actors.length === 0" description="" :height="'140px'">
+        <el-button type="primary" plain :loading="seedingActor" @click="seedActor">填入示例主体</el-button>
+      </EmptyState>
       <el-table v-else :data="actors" size="small" row-key="actor_id">
         <el-table-column label="类型" width="90">
           <template #default="{ row }">
@@ -570,8 +581,7 @@ onMounted(() => {
         type="success"
         show-icon
         :closable="false"
-        title="凭据已签发"
-        description="明文只显示这一次，关闭后无法再查看。请立即复制并妥善保存。"
+        title="关闭后无法再查看"
       />
       <div v-if="issuedToken" class="token-box">
         <span class="mono">{{ issuedToken }}</span>
@@ -600,13 +610,6 @@ onMounted(() => {
           </el-select>
         </el-form-item>
       </el-form>
-      <el-alert
-        type="info"
-        show-icon
-        :closable="false"
-        title="能力只影响任务推荐排序"
-        description="不会授予任何权限，也不会替人做验收。"
-      />
       <template #footer>
         <el-button @click="capabilityVisible = false">取消</el-button>
         <el-button type="primary" :loading="capabilitySaving" @click="saveCapability">保存</el-button>
@@ -675,13 +678,6 @@ onMounted(() => {
           </el-checkbox-group>
         </el-form-item>
       </el-form>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="角色只在「强制项目角色」开启后参与判定"
-        description="owner 覆盖全部动作；direction 管方向与主干；reviewer 管评审；publisher 管契约发布。"
-      />
       <template #footer>
         <el-button @click="roleVisible = false">取消</el-button>
         <el-button type="primary" :loading="roleSaving" @click="saveRoles">保存</el-button>

@@ -102,7 +102,6 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2 class="page-title">事件时间线</h2>
-        <div class="page-subtitle">按语义过滤，而不是原始事件名；点事件可跳回对象。</div>
       </div>
       <el-button size="small" @click="load">
         <el-icon><Refresh /></el-icon>

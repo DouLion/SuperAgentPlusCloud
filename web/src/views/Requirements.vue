@@ -120,9 +120,6 @@ onMounted(load);
     <div class="page-header">
       <div>
         <h2 class="page-title">需求工作台</h2>
-        <div class="page-subtitle">
-          需求不是表格一行：它从原话走到评估、决定与拆解。分组表示「此刻需要做什么」。
-        </div>
       </div>
       <el-button type="primary" @click="openCreate">
         <el-icon><Plus /></el-icon>
@@ -192,15 +189,15 @@ onMounted(load);
     <el-dialog v-model="dialogVisible" title="提交需求" width="560px">
       <el-form :model="form" :rules="rules" label-width="96px">
         <el-form-item label="需求原文" prop="raw_text">
-          <el-input v-model="form.raw_text" type="textarea" :rows="4" placeholder="保留原始表达，不要自行改写" />
+          <el-input v-model="form.raw_text" type="textarea" :rows="4" placeholder="需求原话" />
         </el-form-item>
         <el-form-item label="自报等级">
-          <el-select v-model="form.claimed_level" clearable placeholder="可留空，由 Center 判定">
+          <el-select v-model="form.claimed_level" clearable placeholder="等级">
             <el-option v-for="value in OPTIONS.levels" :key="value" :label="value" :value="value" />
           </el-select>
         </el-form-item>
         <el-form-item label="自报理由">
-          <el-input v-model="form.claimed_reason" placeholder="高等级建议必填" />
+          <el-input v-model="form.claimed_reason" placeholder="理由" />
         </el-form-item>
         <el-form-item label="来源">
           <el-input v-model="form.source_ref" placeholder="会议 / 文档 / 链接" />

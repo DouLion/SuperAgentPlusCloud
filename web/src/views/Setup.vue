@@ -104,15 +104,7 @@ async function finish() {
         label-width="110px"
         class="setup-form"
       >
-        <div v-show="active === 0" class="step-body">
-          <el-alert
-            type="info"
-            :closable="false"
-            show-icon
-            title="欢迎使用 SuperAgentPlus"
-            description="首次使用只需确认监听与数据库配置，模型可以稍后在「设置」中填写。未配置模型不影响主干、需求、任务、评审等核心链路。"
-          />
-        </div>
+        <div v-show="active === 0" class="step-body"></div>
 
         <div v-show="active === 1" class="step-body">
           <el-form-item label="监听端口" prop="port">
@@ -132,14 +124,6 @@ async function finish() {
         </div>
 
         <div v-show="active === 2" class="step-body">
-          <el-alert
-            type="warning"
-            :closable="false"
-            show-icon
-            title="模型未配置不影响核心链"
-            description="AI 只用于生成评估、任务拆分与影响面建议，未配置时以上功能不可用，主干与流程功能照常可用。"
-            class="step-alert"
-          />
           <el-form-item label="接口地址" prop="llm_base_url">
             <el-input v-model="form.llm_base_url" placeholder="https://api.example.com/v1" />
           </el-form-item>
@@ -148,7 +132,7 @@ async function finish() {
               v-model="form.llm_api_key"
               type="password"
               show-password
-              placeholder="可留空，稍后在设置中填写"
+              placeholder="可留空"
             />
           </el-form-item>
           <el-form-item label="模型名称" prop="llm_model">

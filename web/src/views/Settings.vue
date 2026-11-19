@@ -184,20 +184,11 @@ const restartHint = () => {
       <h2 class="settings-title">系统设置</h2>
 
       <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        title="端口、监听地址、数据库修改后需重启 Center 才生效"
-        description="模型配置保存后立即可用，无需重启。"
-        class="settings-alert"
-      />
-
-      <el-alert
         v-if="needsRestart.length > 0"
         type="error"
         :closable="false"
         show-icon
-        :title="`以下修改需要重启 Center 后才生效：${restartHint()}`"
+        :title="`需重启：${restartHint()}`"
         class="settings-alert"
       />
 
@@ -207,7 +198,6 @@ const restartHint = () => {
         :closable="false"
         show-icon
         title="AI 未配置"
-        description="未配置模型不影响主干、需求、任务、评审等核心链路；AI 仅用于生成建议。"
         class="settings-alert"
       />
 
@@ -254,14 +244,6 @@ const restartHint = () => {
         </el-form-item>
 
         <el-divider content-position="left">安全</el-divider>
-        <el-alert
-          type="warning"
-          :closable="false"
-          show-icon
-          title="认证与角色开关会影响所有写操作"
-          description="切到「必须带凭据」后，除引导期外所有写操作都需要 Authorization: Bearer <token>；切到「强制项目角色」后，决定、评审、主干、契约发布等动作还要求发起人具备对应项目角色。"
-          class="settings-alert"
-        />
         <el-form-item label="认证模式">
           <el-radio-group v-model="form.auth_mode">
             <el-radio value="optional">可选（保留无凭据调用）</el-radio>
@@ -288,7 +270,7 @@ const restartHint = () => {
         <el-form-item label="当前主体">
           <el-input
             :model-value="actorId"
-            placeholder="act_...，用于接收站内通知"
+            placeholder="act_..."
             @update:model-value="saveActorId"
           />
         </el-form-item>
@@ -299,7 +281,6 @@ const restartHint = () => {
         :closable="false"
         show-icon
         title="未填写主体"
-        description="填写主体 ID 后，顶栏铃铛会显示该主体的未读通知；通知只是提醒，不产生任何权限。"
         class="settings-alert"
       />
       <el-table v-else :data="prefs" size="small">

@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
 
           <div class="panel">
             <el-collapse>
-              <el-collapse-item title="上下文摘要（Agent 与人都可据此判断依据版本）" name="context">
+              <el-collapse-item title="上下文摘要" name="context">
                 <div v-if="contextLoading" class="muted">正在读取上下文…</div>
                 <el-alert
                   v-else-if="contextError"
@@ -529,7 +529,6 @@ onBeforeUnmount(() => {
                   show-icon
                   :closable="false"
                   :title="contextError"
-                  description="上下文包不可用不影响认领与提交，只影响能否核对版本。"
                 />
                 <div v-else-if="contextBundle" class="context-block">
                   <div class="muted">

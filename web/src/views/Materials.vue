@@ -86,8 +86,52 @@ async function onSelect(id) {
   await loadDetail();
 }
 
+const EXAMPLE_CONTENT = [
+  '会议主题：订单导出与接口前缀调整',
+  '一、背景',
+  '运营反馈导出接口在数据量大时超时；前端点击导出按钮偶发无响应。',
+  '二、结论',
+  '1. 导出接口改为 POST /orders/query 的异步任务式调用，返回包络统一为 {status,message,data}。',
+  '2. 页面与接口前缀统一到 /sap-cloud，旧路径保留 308 迁移提示。',
+  '3. 前端与后端先对齐契约，再各自实现，最后联调；契约变更需登记影响。',
+  '三、待确认',
+  '1. 历史数据导出是否仍保留同步接口，需与运维确认。',
+  '2. 导出任务失败的重试次数尚未确定。',
+].join('\n');
+
+const seeding = ref(false);
+
+async function seedMaterial() {
+  seeding.value = true;
+  try {
+    await api.createMaterial({
+      project_id: projectId,
+      title: '订单导出与接口前缀调整（示例纪要）',
+      kind: 'meeting',
+      source_ref: 'demo://meeting/2026-11-19',
+      created_by: '面板',
+      content: EXAMPLE_CONTENT,
+    });
+    await load();
+    if (materials.value.length) {
+      selectedId.value = materials.value[0].material_id;
+      await loadDetail();
+    }
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '创建示例材料失败'));
+  } finally {
+    seeding.value = false;
+  }
+}
+
 function openCreate() {
-  Object.assign(form, { title: '', kind: 'meeting', source_ref: '', content: '', created_by: '' });
+  Object.assign(form, {
+    title: '订单导出与接口前缀调整（示例纪要）',
+    kind: 'meeting',
+    source_ref: '',
+    content: EXAMPLE_CONTENT,
+    created_by: '',
+  });
   dialogVisible.value = true;
 }
 
@@ -201,9 +245,6 @@ onMounted(async () => {
     <div class="page-header">
       <div>
         <h2 class="page-title">材料与提取</h2>
-        <div class="page-subtitle">
-          导入会议纪要或设计文档，由 AI 拆成需求 / 约定 / 决定草稿；采纳后才会生成正式对象。
-        </div>
       </div>
       <div class="toolbar">
         <el-tag :type="aiConfigured ? 'success' : 'info'" effect="light">
@@ -218,9 +259,10 @@ onMounted(async () => {
 
     <EmptyState
       v-if="!loading && materials.length === 0"
-      description="还没有材料。导入一份会议纪要或设计文档开始提取。"
+      description=""
     >
-      <el-button type="primary" plain @click="openCreate">导入材料</el-button>
+      <el-button type="primary" plain :loading="seeding" @click="seedMaterial">创建示例材料</el-button>
+      <el-button plain @click="openCreate">导入材料</el-button>
     </EmptyState>
 
     <el-row v-else :gutter="16">
@@ -277,7 +319,7 @@ onMounted(async () => {
             </div>
           </template>
 
-          <EmptyState v-if="!detail" description="选择左侧材料查看原文与提取结果" />
+          <EmptyState v-if="!detail" description="未选择材料" />
 
           <div v-else>
             <el-descriptions :column="2" size="small" border>
@@ -297,7 +339,7 @@ onMounted(async () => {
 
             <EmptyState
               v-if="extractions.length === 0"
-              description="还没有提取结果。点右上角「AI 提取」生成草稿。"
+              description="没有提取结果"
             />
 
             <div v-for="group in grouped" :key="group.kind" class="extraction-group">
@@ -340,7 +382,7 @@ onMounted(async () => {
                     type="warning"
                     :closable="false"
                     show-icon
-                    title="采纳后会生成承载需求，仍需走正式决定流程"
+                    title="需正式决定"
                   />
                 </template>
 

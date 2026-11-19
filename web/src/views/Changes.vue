@@ -320,9 +320,8 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2 class="page-title">变更影响台</h2>
-        <div class="page-subtitle">
-          重点不是变更状态，而是影响项有没有被处置。
-          <el-tag v-if="totalPending" type="danger" size="small" effect="plain" style="margin-left: 6px">
+        <div class="page-subtitle" v-if="totalPending">
+          <el-tag type="danger" size="small" effect="plain">
             {{ totalPending }} 个待检查
           </el-tag>
         </div>
@@ -413,7 +412,7 @@ onMounted(() => {
         type="warning"
         :closable="false"
         show-icon
-        title="缺少影响评估声明：未登记影响项且没有声明时无法关闭"
+        title="缺少影响评估声明"
         style="margin-bottom: 10px"
       />
 

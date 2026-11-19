@@ -293,7 +293,7 @@ async function markAllNotificationsRead() {
               </div>
               <el-empty
                 v-if="notifications.length === 0"
-                :description="actorId ? '没有未读通知' : '在设置页填写主体 ID 后可接收通知'"
+                :description="actorId ? '无未读通知' : '未填写主体'"
                 :image-size="60"
               />
               <div v-else class="notify-list">

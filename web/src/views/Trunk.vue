@@ -281,9 +281,6 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2 class="page-title">主干地图</h2>
-        <div class="page-subtitle">
-          主干回答「项目现在是什么、为什么是这样」。缺理由或缺来源的条目会被显式标出。
-        </div>
       </div>
       <el-button type="primary" @click="openPropose">
         <el-icon><Plus /></el-icon>
@@ -337,7 +334,7 @@ onMounted(() => {
             <span class="panel__title">条目详情</span>
             <StatusTag v-if="selectedItem" group="trunk" :value="selectedItem.status" size="small" />
           </div>
-          <EmptyState v-if="!selectedItem" description="从左侧选择一条主干" :height="'160px'" />
+          <EmptyState v-if="!selectedItem" description="未选择条目" :height="'160px'" />
           <div v-else>
             <div class="desc-grid">
               <span class="desc-label">表述</span>
@@ -398,7 +395,7 @@ onMounted(() => {
           <div class="panel__head">
             <span class="panel__title">引用与影响</span>
           </div>
-          <EmptyState v-if="!selectedItem" description="选择条目后查看" :height="'120px'" />
+          <EmptyState v-if="!selectedItem" description="未选择条目" :height="'120px'" />
           <div v-else>
             <div class="panel__title" style="margin: 6px 0">服务它的任务（{{ references.tasks.length }}）</div>
             <div
@@ -475,7 +472,6 @@ onMounted(() => {
     </el-dialog>
 
     <el-dialog v-model="confirmVisible" title="确认主干条目生效" width="480px">
-      <el-alert type="warning" :closable="false" show-icon title="确认后该条目成为当前有效前提" style="margin-bottom: 12px" />
       <el-form :model="confirmForm" :rules="confirmRules" label-width="96px">
         <el-form-item label="确认人" prop="confirmed_by">
           <el-input v-model="confirmForm.confirmed_by" />
@@ -503,7 +499,6 @@ onMounted(() => {
     </el-dialog>
 
     <el-dialog v-model="changeVisible" title="变更此约定" width="640px">
-      <el-alert type="info" :closable="false" show-icon title="变更提出后需确认并生效，才会替代旧条目" style="margin-bottom: 12px" />
       <el-form label-width="96px">
         <el-form-item label="变更理由">
           <el-input v-model="changeForm.reason" type="textarea" :rows="2" />
