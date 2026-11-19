@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS ai_suggestions (
   project_id     TEXT NOT NULL,
   requirement_id TEXT,
   change_id      TEXT,
-  kind           TEXT NOT NULL CHECK (kind IN ('assessment', 'task_plan', 'impact')),
+  kind           TEXT NOT NULL CHECK (kind IN ('assessment', 'task_plan', 'impact', 'contract_orchestration')),
   payload        TEXT NOT NULL,
   raw_response   TEXT,
   model          TEXT,

@@ -24,6 +24,7 @@ export const IMPLEMENTED_COMMANDS = [
   'convention',
   'workflow',
   'artifact',
+  'orchestrate',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -136,6 +137,12 @@ export const PLANNED_COMMANDS = [
     desc: '项目制品：API 契约、文档与 Mock 的版本、校验和发布',
     implemented: true,
   },
+  {
+    name: 'orchestrate',
+    usage: 'sap orchestrate --requirement <req_id> [--workflow <wft_id>] ｜ adopt --suggestion <sug_id> --by <名字> --contract-name <名称>',
+    desc: 'T14 API 契约优先编排：先生成未生效建议；具名采纳后创建 draft 契约与 open 任务',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -151,6 +158,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：T13 制品与接口契约 —— 核心链、AI 建议、约定包、编排模板、Artifact、OpenAPI 校验、同源文档与 Mock 可用。',
+    '当前进度：T14 API 契约优先编排 —— AI 只生成 contract_orchestration 建议，人采纳后创建 draft 契约与 open 任务。',
   ].join('\n');
 }

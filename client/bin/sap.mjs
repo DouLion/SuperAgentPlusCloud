@@ -20,6 +20,7 @@ import { run as runImpacts } from '../src/commands/impacts.mjs';
 import { run as runConvention } from '../src/commands/convention.mjs';
 import { run as runWorkflow } from '../src/commands/workflow.mjs';
 import { run as runArtifact } from '../src/commands/artifact.mjs';
+import { run as runOrchestrate } from '../src/commands/orchestrate.mjs';
 
 const args = process.argv.slice(2);
 const centerUrl = process.env.CENTER_URL || DEFAULT_CENTER_URL;
@@ -42,6 +43,7 @@ const handlers = new Map([
   ['convention', runConvention],
   ['workflow', runWorkflow],
   ['artifact', runArtifact],
+  ['orchestrate', runOrchestrate],
 ]);
 
 function main(argv) {

@@ -49,6 +49,7 @@ node bin/sap.mjs --help
 | `convention` | 团队/项目约定包、模板导入、版本状态 | T12 |
 | `workflow` | 编排模板 DAG 与内置 contract-first-api | T12 |
 | `artifact` | 项目制品、OpenAPI 校验、发布、文档 URL | T13 |
+| `orchestrate` | API 契约优先编排；建议未生效，`adopt` 具名采纳 | T14 |
 
 ### trunk 命令
 

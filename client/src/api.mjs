@@ -265,6 +265,20 @@ export const api = {
     ),
   listAiSuggestions: (query, options) =>
     apiRequest('GET', `/ai/suggestions${queryString(query)}`, undefined, options),
+  orchestrateRequirement: (requirementId, input = {}, options) =>
+    apiRequest(
+      'POST',
+      `/requirements/${encodeURIComponent(requirementId)}/orchestrate`,
+      input,
+      options,
+    ),
+  adoptOrchestration: (suggestionId, input, options) =>
+    apiRequest(
+      'POST',
+      `/ai/suggestions/${encodeURIComponent(suggestionId)}/adopt-orchestration`,
+      input,
+      options,
+    ),
 
   listConventionPacks: (query, options) =>
     apiRequest('GET', `/convention-packs${queryString(query)}`, undefined, options),

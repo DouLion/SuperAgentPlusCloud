@@ -1,5 +1,5 @@
-// Center HTTP 路由：AI 建议（T8）。
-// 只生成并查询建议记录，不改变需求、任务、主干变更等业务状态。
+// Center HTTP 路由：AI 建议（T8/T14）。
+// 所有 AI 调用先生成建议；T14 编排须具名人工采纳后才创建 draft Artifact 与 open Tasks。
 
 import { aiConfigured, llmConfig } from '../../config.mjs';
 import { getRequirement } from '../../db/requirements.mjs';
@@ -10,6 +10,10 @@ import {
   suggestAssessment,
   suggestImpacts,
 } from '../../ai/advisor.mjs';
+import {
+  adoptContractOrchestration,
+  suggestContractOrchestration,
+} from '../../ai/contract-orchestration.mjs';
 
 /** 构造 404 响应。 */
 function notFound(label, id) {
@@ -48,6 +52,22 @@ export const ROUTES = [
       if (!getTrunkChange(db, params.id)) return notFound('主干变更', params.id);
       return { status: 201, body: await suggestImpacts(db, params.id) };
     },
+  },
+  {
+    method: 'POST',
+    pattern: '/requirements/:id/orchestrate',
+    handler: async ({ params, body, db }) => {
+      if (!getRequirement(db, params.id)) return notFound('需求', params.id);
+      return { status: 201, body: await suggestContractOrchestration(db, params.id, body) };
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/ai/suggestions/:id/adopt-orchestration',
+    handler: ({ params, body, db }) => ({
+      status: 201,
+      body: adoptContractOrchestration(db, params.id, body),
+    }),
   },
   {
     method: 'GET',
