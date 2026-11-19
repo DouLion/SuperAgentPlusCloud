@@ -250,6 +250,10 @@ export const api = {
     request('POST', `/repositories/${encodeURIComponent(id)}/archive`, input),
   listRepositoryFacts: (id, query) =>
     request('GET', `/repositories/${encodeURIComponent(id)}/facts${queryString(query)}`),
+  syncRepository: (id, input) =>
+    request('POST', `/repositories/${encodeURIComponent(id)}/sync`, input),
+  listRepositoryCommits: (id, query) =>
+    request('GET', `/repositories/${encodeURIComponent(id)}/commits${queryString(query)}`),
   listImpacts: (query) => request('GET', `/impacts${queryString(query)}`),
 
   // 契约优先编排（T14）

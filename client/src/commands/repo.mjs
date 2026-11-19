@@ -10,6 +10,8 @@ export const meta = {
     + '       sap repo list --project <id> [--status active|archived]\n'
     + '       sap repo show --repo <repository_id>\n'
     + '       sap repo archive --repo <repository_id> [--reason <理由>]\n'
+    + '       sap repo sync --repo <repository_id> --path <本地仓库路径> [--limit N] [--actor <主体>]\n'
+    + '       sap repo history --repo <repository_id> [--limit N]\n'
     + '       sap repo commits --repo <repository_id> [--limit N]',
 };
 
@@ -67,6 +69,37 @@ export async function run(argv, io = {}) {
         reason: optionalFlag(flags, 'reason'),
       }, options);
       out(`仓库已归档：${repo.repository_id}  历史提交事实保留`);
+      return 0;
+    }
+
+    if (sub === 'sync') {
+      const result = await api.syncRepository(requireFlag(flags, 'repo'), {
+        local_path: requireFlag(flags, 'path', '<本地仓库路径>'),
+        limit: optionalFlag(flags, 'limit'),
+        actor_id: optionalFlag(flags, 'actor'),
+      }, options);
+      out(`已同步：${result.repository?.name ?? result.toplevel}`);
+      out(`  分支：${result.branch}  HEAD：${String(result.head).slice(0, 12)}`);
+      out(`  提交：读取 ${result.commits_seen}，新增 ${result.commits_added}，已存在 ${result.commits_duplicated}`);
+      out(`  跟踪文件：${result.tracked_files}  目录摘要：${String(result.tree_digest).slice(0, 12)}`);
+      return 0;
+    }
+
+    if (sub === 'history') {
+      const result = await api.listRepositoryCommits(
+        requireFlag(flags, 'repo'),
+        { limit: optionalFlag(flags, 'limit') ?? 20 },
+        options,
+      );
+      if (!result.commits.length) {
+        out('该仓库还没有同步过提交');
+        return 0;
+      }
+      out(`${result.branch ?? '—'} @ ${String(result.head ?? '').slice(0, 12)}  同步于 ${result.synced_at ?? '—'}`);
+      for (const commit of result.commits) {
+        out(`${String(commit.commit_sha).slice(0, 12)}  ${commit.committed_at ?? '—'}  `
+          + `${commit.author ?? '—'}  ${String(commit.summary ?? '').slice(0, 80)}`);
+      }
       return 0;
     }
 

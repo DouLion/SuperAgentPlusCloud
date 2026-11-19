@@ -147,11 +147,19 @@ test('提交可引用同项目事实；跨项目事实被拒绝', async () => {
     submitted_by: '负责人',
     external_fact_ids: [fact.fact_id],
   });
-  assert.deepEqual(submission.external_fact_ids, [fact.fact_id]);
+  // 显式引用的 CI 事实 + commit hash 自动匹配到的 git 事实，两者都应挂上。
+  const gitFact = db.prepare(`SELECT fact_id FROM external_facts
+    WHERE project_id = ? AND source = 'git' AND external_id = 'abc123'`).get(project.project_id);
+  assert.ok(gitFact, '前置：项目里已有 abc123 的 git 提交事实');
+  assert.deepEqual(
+    [...submission.external_fact_ids].sort(),
+    [fact.fact_id, gitFact.fact_id].sort(),
+  );
 
   const detail = getSubmission(db, submission.submission_id);
-  assert.equal(detail.external_facts.length, 1);
-  assert.equal(detail.external_facts[0].external_id, 'build-9');
+  assert.equal(detail.external_facts.length, 2);
+  assert.ok(detail.external_facts.some((one) => one.external_id === 'build-9'));
+  assert.ok(detail.external_facts.some((one) => one.external_id === 'abc123'));
 
   const otherProject = createProject(db, { name: '另一个项目' });
   const foreign = createFact(db, {

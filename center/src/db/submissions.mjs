@@ -132,6 +132,24 @@ export function createSubmission(db, input = {}) {
       }
     }
 
+    // 提交里的 commit hash 若已同步为项目事实，自动挂上证据：代码不说谎，自述才可能说谎。
+    const commitHashes = commitRefs
+      .map((ref) => (typeof ref === 'string' ? ref : ref?.hash))
+      .filter((hash) => typeof hash === 'string' && hash.trim())
+      .map((hash) => hash.trim());
+    for (const hash of commitHashes) {
+      const fact = db.prepare(`SELECT fact_id FROM external_facts
+        WHERE project_id = ? AND source = 'git' AND kind = 'commit' AND external_id = ?`).get(task.project_id, hash);
+      if (fact) factIds.push(fact.fact_id);
+      else {
+        // 只允许前缀匹配完整 sha，避免把短哈希误挂到别的提交上。
+        const prefixed = db.prepare(`SELECT fact_id FROM external_facts
+          WHERE project_id = ? AND source = 'git' AND kind = 'commit' AND external_id LIKE ?
+          LIMIT 2`).all(task.project_id, `${hash}%`);
+        if (prefixed.length === 1) factIds.push(prefixed[0].fact_id);
+      }
+    }
+
     db.prepare(INSERT_SUBMISSION).run(
       submissionId,
       taskId,
@@ -141,7 +159,7 @@ export function createSubmission(db, input = {}) {
       pick(input, 'self_test', 'selfTest'),
       jsonField(input, 'known_gaps'),
       jsonField(input, 'artifacts'),
-      encodeJson(factIds),
+      encodeJson([...new Set(factIds)]),
       isOwner ? submittedBy : `${submittedBy} (collaborator)`,
       now,
       pick(input, 'created_at', 'createdAt') ?? now,

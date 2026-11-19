@@ -11,6 +11,7 @@ import {
   repositorySummary,
   updateRepository,
 } from '../../db/repositories.mjs';
+import { listRepositoryCommits, syncRepositoryFromGit } from '../../git/sync.mjs';
 
 function requireRepository(db, repositoryId) {
   const repository = getRepository(db, repositoryId);
@@ -74,6 +75,35 @@ export const ROUTES = [
       }
       guardWrite(db, req, repository.project_id);
       return archiveRepository(db, params.id, body);
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/repositories/:id/sync',
+    handler: async ({ db, params, body, req }) => {
+      const repository = getRepository(db, params.id);
+      if (!repository) {
+        return { status: 404, body: { ok: false, code: 'REPOSITORY_NOT_FOUND', error: `仓库不存在：${params.id}` } };
+      }
+      guardWrite(db, req, repository.project_id);
+      return { status: 200, body: await syncRepositoryFromGit(db, params.id, body) };
+    },
+  },
+  {
+    method: 'GET',
+    pattern: '/repositories/:id/commits',
+    handler: ({ db, params, url }) => {
+      const repository = getRepository(db, params.id);
+      if (!repository) {
+        return { status: 404, body: { ok: false, code: 'REPOSITORY_NOT_FOUND', error: `仓库不存在：${params.id}` } };
+      }
+      return {
+        repository_id: repository.repository_id,
+        head: repository.last_head ?? null,
+        branch: repository.last_branch ?? null,
+        synced_at: repository.last_synced_at ?? null,
+        commits: listRepositoryCommits(db, params.id, { limit: url.searchParams.get('limit') ?? undefined }),
+      };
     },
   },
   {

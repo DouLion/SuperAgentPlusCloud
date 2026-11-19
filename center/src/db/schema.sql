@@ -569,7 +569,14 @@ CREATE TABLE IF NOT EXISTS project_repositories (
                  CHECK (status IN ('active', 'archived')),
   created_by     TEXT,
   created_at     TEXT NOT NULL,
-  archived_at    TEXT
+  archived_at    TEXT,
+  -- 同步：本地路径与最近一次读取到的版本，用于把真实提交与源码登记为事实。
+  local_path     TEXT,
+  last_head      TEXT,
+  last_branch    TEXT,
+  last_synced_at TEXT,
+  tracked_file_count INTEGER,
+  tree_digest    TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_project_repositories_url

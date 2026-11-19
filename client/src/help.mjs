@@ -239,8 +239,8 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'repo',
-    usage: 'sap repo add --project <id> --name <名称> --url <git 地址> [--branch main] ｜ list --project <id> ｜ show --repo <id> ｜ archive --repo <id> ｜ commits --repo <id>',
-    desc: '项目代码仓库：一个项目可登记多个 git 地址，提交事实按仓库归属',
+    usage: 'sap repo add --project <id> --name <名称> --url <git 地址> [--branch main] ｜ list --project <id> ｜ show --repo <id> ｜ archive --repo <id> ｜ sync --repo <id> --path <本地路径> ｜ history --repo <id> ｜ commits --repo <id>',
+    desc: '项目代码仓库：一个项目可登记多个 git 地址，可从本地 git 同步真实提交与文件清单',
     implemented: true,
   },
   {

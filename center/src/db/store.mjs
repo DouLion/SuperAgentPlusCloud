@@ -292,6 +292,16 @@ export function migrate(db = openStore()) {
   ensureColumn(db, 'submissions', 'external_fact_ids', "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, 'external_facts', 'repository_id', 'TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_external_facts_repo ON external_facts (repository_id, received_at)');
+  for (const [column, type] of [
+    ['local_path', 'TEXT'],
+    ['last_head', 'TEXT'],
+    ['last_branch', 'TEXT'],
+    ['last_synced_at', 'TEXT'],
+    ['tracked_file_count', 'INTEGER'],
+    ['tree_digest', 'TEXT'],
+  ]) {
+    ensureColumn(db, 'project_repositories', column, type);
+  }
   return db;
 }
 

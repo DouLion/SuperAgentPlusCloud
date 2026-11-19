@@ -452,6 +452,10 @@ export const api = {
     apiRequest('POST', `/repositories/${encodeURIComponent(repositoryId)}/archive`, input, options),
   listRepositoryFacts: (repositoryId, query, options) =>
     apiRequest('GET', `/repositories/${encodeURIComponent(repositoryId)}/facts${queryString(query)}`, undefined, options),
+  syncRepository: (repositoryId, input, options) =>
+    apiRequest('POST', `/repositories/${encodeURIComponent(repositoryId)}/sync`, input, options),
+  listRepositoryCommits: (repositoryId, query, options) =>
+    apiRequest('GET', `/repositories/${encodeURIComponent(repositoryId)}/commits${queryString(query)}`, undefined, options),
   listFacts: (query, options) =>
     apiRequest('GET', `/integrations/facts${queryString(query)}`, undefined, options),
   getFact: (factId, options) =>

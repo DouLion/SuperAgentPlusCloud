@@ -19,6 +19,35 @@ const factLoading = ref(false);
 const dialog = ref(false);
 const saving = ref(false);
 const form = reactive({ name: '', url: '', default_branch: '', provider: 'other' });
+const syncDialog = ref(false);
+const syncing = ref(false);
+const syncForm = reactive({ local_path: '', limit: 50 });
+
+async function openSync() {
+  Object.assign(syncForm, { local_path: selected.value?.local_path || '', limit: 50 });
+  syncDialog.value = true;
+}
+
+async function submitSync() {
+  if (!syncForm.local_path.trim()) {
+    ElMessage.warning('需要仓库的本地路径');
+    return;
+  }
+  syncing.value = true;
+  try {
+    const result = await api.syncRepository(selected.value.repository_id, {
+      local_path: syncForm.local_path.trim(),
+      limit: syncForm.limit,
+    });
+    ElMessage.success(`新增 ${result.commits_added} 条提交，读取 ${result.tracked_files} 个文件`);
+    syncDialog.value = false;
+    await loadRepositories(selected.value.repository_id);
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '同步失败'));
+  } finally {
+    syncing.value = false;
+  }
+}
 
 async function loadRepositories(keepId) {
   loading.value = true;
@@ -162,7 +191,14 @@ onMounted(() => loadRepositories());
           <template #header>
             <div class="card-header-row">
               <span class="mono">{{ selected.url }}</span>
-              <span class="muted">{{ selected.default_branch || '—' }}</span>
+              <span class="toolbar">
+                <span class="muted mono">{{ selected.last_branch || '—' }} @ {{ String(selected.last_head || '').slice(0, 10) }}</span>
+                <span v-if="selected.last_synced_at" class="muted">{{ formatTime(selected.last_synced_at) }}</span>
+                <span v-if="selected.tracked_file_count" class="muted">{{ selected.tracked_file_count }} 文件</span>
+                <el-button size="small" type="primary" plain :disabled="selected.status !== 'active'" @click="openSync">
+                  同步
+                </el-button>
+              </span>
             </div>
           </template>
 
@@ -189,6 +225,21 @@ onMounted(() => loadRepositories());
         <EmptyState v-else description="未选择仓库" />
       </el-col>
     </el-row>
+
+    <el-dialog v-model="syncDialog" title="从本地 git 同步" width="520px">
+      <el-form label-width="90px">
+        <el-form-item label="本地路径">
+          <el-input v-model="syncForm.local_path" placeholder="D:\code\project" />
+        </el-form-item>
+        <el-form-item label="读取提交">
+          <el-input-number v-model="syncForm.limit" :min="1" :max="200" :step="10" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="syncDialog = false">取消</el-button>
+        <el-button type="primary" :loading="syncing" @click="submitSync">同步</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="dialog" title="登记仓库" width="520px">
       <el-form label-width="90px">
