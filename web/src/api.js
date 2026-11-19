@@ -279,6 +279,26 @@ export const api = {
   adminHealth: () => request('GET', '/admin/health'),
   createBackup: (input) => request('POST', '/admin/backup', input),
   verifyBackup: (query) => request('GET', `/admin/backup/verify${queryString(query)}`),
+
+  // 流程图
+  listDiagrams: (projectId, query) =>
+    request('GET', `/projects/${encodeURIComponent(projectId)}/diagrams${queryString(query)}`),
+  createDiagram: (projectId, input) =>
+    request('POST', `/projects/${encodeURIComponent(projectId)}/diagrams`, input),
+  seedDiagrams: (projectId, input = {}) =>
+    request('POST', `/projects/${encodeURIComponent(projectId)}/diagrams/seed`, input),
+  getDiagram: (id) => request('GET', `/diagrams/${encodeURIComponent(id)}`),
+  updateDiagram: (id, input) => request('PATCH', `/diagrams/${encodeURIComponent(id)}`, input),
+  archiveDiagram: (id) => request('POST', `/diagrams/${encodeURIComponent(id)}/archive`, {}),
+  addDiagramNode: (id, input) => request('POST', `/diagrams/${encodeURIComponent(id)}/nodes`, input),
+  updateDiagramNode: (id, nodeId, input) =>
+    request('PATCH', `/diagrams/${encodeURIComponent(id)}/nodes/${encodeURIComponent(nodeId)}`, input),
+  deleteDiagramNode: (id, nodeId) =>
+    request('DELETE', `/diagrams/${encodeURIComponent(id)}/nodes/${encodeURIComponent(nodeId)}`),
+  addDiagramEdge: (id, input) => request('POST', `/diagrams/${encodeURIComponent(id)}/edges`, input),
+  deleteDiagramEdge: (id, edgeId) =>
+    request('DELETE', `/diagrams/${encodeURIComponent(id)}/edges/${encodeURIComponent(edgeId)}`),
+  createSubDiagram: (id, input) => request('POST', `/diagrams/${encodeURIComponent(id)}/sub`, input),
 };
 
 /** 统一错误文案：网络错误与 AI 未配置给出可操作提示，其余透出服务端中文错误。 */

@@ -427,6 +427,13 @@ async function completeDemo(projectId) {
     added.push('契约 v2 与变更影响');
   }
 
+  // 流程图：主流程「需求到交付」，两个节点各挂一张子流程。
+  const diagramList = await api.listDiagrams(projectId, { kind: 'main' });
+  if (!Array.isArray(diagramList) || diagramList.length === 0) {
+    await api.seedDiagrams(projectId, { created_by: '演示' });
+    added.push('流程图');
+  }
+
   return added;
 }
 

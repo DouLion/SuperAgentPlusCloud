@@ -21,6 +21,7 @@ export function projectNavGroups(id) {
       title: '项目认知',
       items: [
         { name: 'trunk', title: '主干地图', icon: 'Share' },
+        { name: 'diagrams', title: '流程图', icon: 'Guide' },
         { name: 'requirements', title: '需求工作台', icon: 'Document' },
         { name: 'materials', title: '材料与提取', icon: 'FolderOpened' },
         { name: 'repositories', title: '代码仓库', icon: 'Coin' },

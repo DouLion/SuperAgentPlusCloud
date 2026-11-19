@@ -624,3 +624,24 @@ CREATE TABLE IF NOT EXISTS outbox_subscriptions (
 
 
 
+
+
+-- 项目流程图（项目认知）-------------------------------------------------------
+-- 一张图整存 JSON：节点与边都在 graph 里，便于整体保存与替换。
+-- 子图通过 parent_diagram_id + parent_node_id 挂在主流程的某个节点上。
+CREATE TABLE IF NOT EXISTS diagrams (
+  diagram_id        TEXT PRIMARY KEY,
+  project_id        TEXT NOT NULL REFERENCES projects (project_id),
+  name              TEXT NOT NULL,
+  kind              TEXT NOT NULL DEFAULT 'main' CHECK (kind IN ('main', 'sub')),
+  parent_diagram_id TEXT REFERENCES diagrams (diagram_id),
+  parent_node_id    TEXT,
+  graph             TEXT NOT NULL DEFAULT '{"nodes":[],"edges":[]}',
+  status            TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'archived')),
+  created_by        TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_diagrams_project ON diagrams (project_id, kind);
+CREATE INDEX IF NOT EXISTS idx_diagrams_parent ON diagrams (parent_diagram_id);

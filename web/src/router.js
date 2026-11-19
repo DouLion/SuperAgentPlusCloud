@@ -15,6 +15,7 @@ import Settings from './views/Settings.vue';
 import Agents from './views/Agents.vue';
 import Contracts from './views/Contracts.vue';
 import Repositories from './views/Repositories.vue';
+import Diagrams from './views/Diagrams.vue';
 
 // URL 契约见 docs/08 §3：页面统一在 /sap-cloud/* 下，项目内部嵌套在 /project/:id/*。
 const routes = [
@@ -62,6 +63,12 @@ const routes = [
     name: 'repositories',
     component: Repositories,
     meta: { title: '代码仓库' },
+  },
+  {
+    path: '/project/:id/diagrams',
+    name: 'diagrams',
+    component: Diagrams,
+    meta: { title: '流程图' },
   },
   {
     path: '/project/:id/requirements/:requirementId',
