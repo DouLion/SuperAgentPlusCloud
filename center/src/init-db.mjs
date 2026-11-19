@@ -2,9 +2,9 @@
 // 用法：node src/init-db.mjs（可用环境变量 CENTER_DB 指定路径）
 
 import { openStore } from './store.mjs';
-import { DB_PATH } from './config.mjs';
+import { DB_PATH, config } from './config.mjs';
 
-const db = openStore(DB_PATH);
+const db = openStore(DB_PATH, { type: config.db.type });
 
 const { n: tableCount } = db
   .prepare(

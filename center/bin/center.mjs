@@ -10,7 +10,7 @@ import { resolveConfig } from '../src/config.mjs';
 const resolved = resolveConfig();
 const { port, host, db } = resolved;
 
-const dbHandle = openStore(db.path);
+const dbHandle = openStore(db.path, { type: db.type });
 const server = createServer(dbHandle);
 
 server.on('error', (err) => {

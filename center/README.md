@@ -137,6 +137,55 @@ npm run e2e    # = node client/bin/e2e.mjs
 | `npm run e2e` | 运行端到端脚本 |
 | `npm run center` | 启动 Center（等价于 `node center/bin/center.mjs`） |
 | `npm run client` | 运行 Client（等价于 `node client/bin/sap.mjs`） |
+| `npm run export-data` | 导出当前库为 JSON |
+| `npm run import-data` | 把导出的 JSON 写入新库 |
+| `npm run sqlite-to-sql` | 生成通用 SQL DDL 草案 |
+
+## 数据库与迁移
+
+### 方言层
+
+`src/db/dialect.mjs` 定义数据库方言契约，`src/db/dialects/sqlite.mjs` 是当前唯一实现。
+`db/*.mjs` 只调用 `prepare / exec / transaction / close`，不直接依赖 `node:sqlite`。
+
+- `openStore(path, { type })` 返回方言外观对象，原有调用方式不变；
+- `transaction(fn)` 支持嵌套（内层用保存点），回滚内层不影响外层；
+- `insertReturning(table, columns, values)` 供将来需要 `RETURNING` 的方言使用。
+
+### 当前只支持 SQLite
+
+`db.type` 可以是 `sqlite` / `postgres` / `mysql`，但**运行期只放行 `sqlite`**。
+选择 `postgres` 或 `mysql` 时启动会抛 `UNSUPPORTED_DB_TYPE`（HTTP 501 语义），并提示需要：
+
+1. 安装对应驱动（`pg` 或 `mysql2`）；
+2. 新增 `src/db/dialects/postgres.mjs` 或 `mysql.mjs`，实现同一契约；
+3. 用 `sqlite-to-sql` 的草案人工复核索引、CHECK 与外键后再迁移。
+
+> 引入驱动会打破 Center「零第三方依赖」，因此这一步只在确有并发或运维需求时进行。
+
+### 导出与导入
+
+```powershell
+# 导出全部表（也可 --table tasks 只导一张）
+node center/bin/export-data.mjs --out dump.json
+
+# 查看将写入多少行，不落库
+node center/bin/import-data.mjs --in dump.json --target new.db --dry-run
+
+# 实际导入（目标库必须不存在，避免误覆盖）
+node center/bin/import-data.mjs --in dump.json --target new.db
+```
+
+导出文件包含 `schema_version`、`exported_at`、`dialect` 与按表分组的行数据。
+导入按内置外键顺序写入，整个导入在单事务内完成，失败自动回滚。
+
+### DDL 草案
+
+```powershell
+node center/bin/sqlite-to-sql.mjs --out schema-draft.sql
+```
+
+只做 `TEXT / INTEGER` 的基本映射，索引、CHECK 约束、部分唯一索引与级联行为**需人工复核**。
 
 ## 环境变量
 

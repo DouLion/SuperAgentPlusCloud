@@ -1,10 +1,10 @@
 // Center 数据库连接与迁移（T7 归置）。
 // schema.sql 是唯一建表来源；本文件只负责打开连接、执行迁移与重置。
 
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createDialect } from './dialect.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.dirname(path.dirname(HERE));
@@ -140,16 +140,22 @@ const ACTOR_TYPE_COLUMNS = [
 
 /**
  * 打开（并按需创建目录）数据库，执行迁移。
+ * 返回方言外观对象：向上暴露 prepare / exec / close / type / dialect / raw / transaction，
+ * 因此现有 db/*.mjs 的调用方式不需要改动。
  * @param {string} [dbPath] 绝对或相对路径，默认 center/data/center.db
- * @returns {import('node:sqlite').DatabaseSync}
+ * @param {{type?: string, readOnly?: boolean}} [options] 数据库类型，默认 sqlite
+ * @returns {object} 方言外观对象
  */
-export function openStore(dbPath = DEFAULT_DB_PATH) {
-  const resolved = path.resolve(dbPath);
-  fs.mkdirSync(path.dirname(resolved), { recursive: true });
-  const db = new DatabaseSync(resolved);
-  db.exec('PRAGMA foreign_keys = ON');
-  migrate(db);
-  return db;
+export function openStore(dbPath = DEFAULT_DB_PATH, options = {}) {
+  const dialect = createDialect({
+    type: options.type || 'sqlite',
+    database: dbPath,
+    readOnly: options.readOnly,
+  });
+  // 自引用，便于调用方取到方言元信息（type / placeholder / transaction）。
+  dialect.dialect = dialect;
+  if (!options.readOnly && options.migrate !== false) migrate(dialect);
+  return dialect;
 }
 
 /**

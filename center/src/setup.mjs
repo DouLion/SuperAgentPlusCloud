@@ -49,8 +49,9 @@ function validate(values) {
   }
 
   const db = values.db || {};
-  if (db.type !== undefined && db.type !== 'sqlite') {
-    throw invalid('UNSUPPORTED_DB_TYPE', `无法使用数据库类型 ${db.type}，目前仅支持 sqlite`);
+  // 允许保存三种类型，便于提前规划；运行时只放行已实现的方言（见 db/dialect.mjs）。
+  if (db.type !== undefined && !['sqlite', 'postgres', 'postgresql', 'mysql'].includes(db.type)) {
+    throw invalid('UNSUPPORTED_DB_TYPE', `未知的数据库类型 ${db.type}，可选 sqlite / postgres / mysql`);
   }
   if (db.path !== undefined && (typeof db.path !== 'string' || !db.path.trim())) {
     throw invalid('INVALID_DB_PATH', '数据库路径不能为空');

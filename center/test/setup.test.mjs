@@ -1,4 +1,4 @@
-﻿// Center 配置与设置服务测试（T10）。
+// Center 配置与设置服务测试（T10）。
 // 覆盖三层合并、原子写、初始化/更新、校验、密钥不回显与 HTTP 路由。
 // 运行：node --test center/test/
 
@@ -131,7 +131,7 @@ test('校验：非法值抛 400 + code', () => {
   const cases = [
     [{ port: 0 }, 'INVALID_PORT'],
     [{ port: 70000 }, 'INVALID_PORT'],
-    [{ db: { type: 'postgres' } }, 'UNSUPPORTED_DB_TYPE'],
+    [{ db: { type: 'oracle' } }, 'UNSUPPORTED_DB_TYPE'],
     [{ db: { path: '' } }, 'INVALID_DB_PATH'],
     [{ llm: { timeout_ms: 0 } }, 'INVALID_TIMEOUT'],
   ];
@@ -142,6 +142,18 @@ test('校验：非法值抛 400 + code', () => {
       return true;
     });
   }
+});
+
+test('校验：postgres / mysql 可保存，但运行期仍只支持 sqlite', async () => {
+  // 允许提前规划，因此保存不报错。
+  const status = initSetup({ db: { type: 'postgres', path: 'pg-placeholder' } }, env);
+  assert.equal(status.db_type, 'postgres');
+
+  const { openStore } = await import('../src/db/store.mjs');
+  assert.throws(
+    () => openStore(path.join(os.tmpdir(), `sap-pg-${process.pid}.db`), { type: 'postgres' }),
+    (err) => err.code === 'UNSUPPORTED_DB_TYPE',
+  );
 });
 
 test('HTTP：/setup/status 不泄漏密钥，/setup/init 与 /setup 可用', async () => {
@@ -193,7 +205,7 @@ test('HTTP：/setup/status 不泄漏密钥，/setup/init 与 /setup 可用', asy
     const badResponse = await fetch(`${base}/setup`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ db: { type: 'mysql' } }),
+      body: JSON.stringify({ db: { type: 'oracle' } }),
     });
     assert.equal(badResponse.status, 400);
     const badBody = await badResponse.json();

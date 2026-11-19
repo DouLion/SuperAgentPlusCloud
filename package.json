@@ -10,7 +10,10 @@
     "center": "node center/bin/center.mjs",
     "client": "node client/bin/sap.mjs",
     "web": "npm --prefix web run dev",
-    "build": "npm --prefix web run build"
+    "build": "npm --prefix web run build",
+    "export-data": "node center/bin/export-data.mjs",
+    "import-data": "node center/bin/import-data.mjs",
+    "sqlite-to-sql": "node center/bin/sqlite-to-sql.mjs"
   },
   "engines": {
     "node": ">=26"
