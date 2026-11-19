@@ -36,6 +36,8 @@ export const IMPLEMENTED_COMMANDS = [
   'candidates',
   'observe',
   'material',
+  'notify',
+  'admin',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -220,6 +222,18 @@ export const PLANNED_COMMANDS = [
     desc: '材料导入与 AI 提取：只产生草稿，采纳后才生成需求或约定',
     implemented: true,
   },
+  {
+    name: 'notify',
+    usage: 'sap notify list [--actor <id>] [--unread] ｜ read <id> ｜ read-all --actor <id> ｜ prefs --actor <id> [--set kind=on|off] ｜ scan',
+    desc: 'E 枝站内通知：可认领、待评审、待判断、待检查影响与租约临期提醒',
+    implemented: true,
+  },
+  {
+    name: 'admin',
+    usage: 'sap admin backup --target <file> ｜ verify --path <file> ｜ health',
+    desc: 'E 枝运行可靠性：数据库备份、备份校验与健康检查',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -238,6 +252,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：C 枝材料接入 —— 材料原文、AI 提取需求/约定/决定草稿、人工采纳。',
+    '当前进度：E 枝通知与运行可靠性 —— 站内提醒、通知偏好、备份与健康检查。',
   ].join('\n');
 }

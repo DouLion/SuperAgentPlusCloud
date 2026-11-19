@@ -525,3 +525,34 @@ CREATE INDEX IF NOT EXISTS idx_extractions_material ON material_extractions (mat
 CREATE INDEX IF NOT EXISTS idx_extractions_kind_status ON material_extractions (kind, status);
 
 
+-- 站内通知（E 枝）-------------------------------------------------------------
+-- 通知是「提醒」，不是「权利」：读或不读都不改变业务状态；dedupe_key 保证同一事实不重复推送。
+CREATE TABLE IF NOT EXISTS notifications (
+  notification_id TEXT PRIMARY KEY,
+  actor_id        TEXT NOT NULL REFERENCES actors (actor_id),
+  project_id      TEXT REFERENCES projects (project_id),
+  kind            TEXT NOT NULL CHECK (kind IN (
+                    'task_available', 'review_requested', 'decision_required',
+                    'impact_to_check', 'lease_expiring', 'system'
+                  )),
+  title           TEXT NOT NULL,
+  body            TEXT,
+  ref_type        TEXT,
+  ref_id          TEXT,
+  dedupe_key      TEXT NOT NULL UNIQUE,
+  created_at      TEXT NOT NULL,
+  read_at         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_actor_read ON notifications (actor_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications (created_at);
+
+CREATE TABLE IF NOT EXISTS notification_prefs (
+  actor_id TEXT NOT NULL REFERENCES actors (actor_id),
+  kind     TEXT NOT NULL,
+  enabled  INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (actor_id, kind)
+);
+
+
+

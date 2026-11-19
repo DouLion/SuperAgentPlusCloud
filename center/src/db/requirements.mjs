@@ -2,6 +2,7 @@
 
 import { listEvents, appendEvent } from './events.mjs';
 import { enqueueFromEvent } from '../protocol/outbox.mjs';
+import { notifyDecisionRequired } from '../notify/notifier.mjs';
 import {
   ASSESSMENT_LEVELS,
   ASSESSOR_TYPES,
@@ -82,7 +83,13 @@ export function createRequirement(db, input = {}) {
     refs: relatedItemIds === undefined ? [] : [...relatedItemIds],
   });
 
-  return getRequirement(db, requirementId);
+  const created = getRequirement(db, requirementId);
+  try {
+    notifyDecisionRequired(db, created);
+  } catch {
+    // 忽略通知异常
+  }
+  return created;
 }
 
 /** 按 ID 查询需求；不存在返回 null。 */

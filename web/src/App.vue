@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, errorMessage } from './api.js';
@@ -14,6 +14,13 @@ const selectedProjectId = ref(localStorage.getItem('sap.projectId') || '');
 const ai = appState.ai;
 const aiLoading = ref(false);
 const collapsed = ref(false);
+
+// 通知（E 枝）：当前主体从 localStorage 读取，面板不强制登录。
+const actorId = ref(localStorage.getItem('sap.actorId') || '');
+const notifications = ref([]);
+const unreadCount = ref(0);
+const notifyLoading = ref(false);
+let notifyTimer = null;
 
 const pageTitle = computed(() => route.meta.title || 'SuperAgentPlus');
 const currentProject = computed(
@@ -86,10 +93,17 @@ onMounted(() => {
   loadProjects();
   reloadAiHealth();
   loadSetupStatus();
+  loadNotifications();
+  notifyTimer = setInterval(loadNotifications, 60000);
+});
+
+onBeforeUnmount(() => {
+  if (notifyTimer) clearInterval(notifyTimer);
 });
 
 router.afterEach(() => {
   reloadAiHealth();
+  loadNotifications();
 });
 
 watch(
@@ -110,6 +124,57 @@ function onProjectChange(id) {
 
 function enterProject(id) {
   go(router, 'dashboard', { id });
+}
+
+/** 加载未读通知；没有配置主体时静默跳过，不打断面板。 */
+async function loadNotifications() {
+  if (!actorId.value) {
+    notifications.value = [];
+    unreadCount.value = 0;
+    return;
+  }
+  notifyLoading.value = true;
+  try {
+    const [count, list] = await Promise.all([
+      api.unreadNotificationCount({ actor_id: actorId.value }),
+      api.listNotifications({ actor_id: actorId.value, unread: '1', limit: 8 }),
+    ]);
+    unreadCount.value = count.unread ?? 0;
+    notifications.value = list.items ?? [];
+  } catch {
+    // 通知失败不影响主流程
+  } finally {
+    notifyLoading.value = false;
+  }
+}
+
+/** 标记单条已读；能定位对象时跳过去。 */
+async function openNotification(item) {
+  try {
+    await api.readNotification(item.notification_id, { actor_id: actorId.value });
+  } catch {
+    // 已读失败也允许继续跳转
+  }
+  await loadNotifications();
+
+  const projectId = item.project_id || selectedProjectId.value;
+  if (item.ref_type === 'requirement' && projectId) {
+    go(router, 'requirement-detail', { id: projectId, requirementId: item.ref_id });
+  } else if (item.ref_type === 'task' && projectId) {
+    go(router, 'task-detail', { id: projectId, taskId: item.ref_id });
+  } else if (item.ref_type === 'impact_item' && projectId) {
+    go(router, 'changes', { id: projectId });
+  }
+}
+
+async function markAllNotificationsRead() {
+  if (!actorId.value) return;
+  try {
+    await api.readAllNotifications({ actor_id: actorId.value });
+    await loadNotifications();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '标记已读失败'));
+  }
 }
 </script>
 
@@ -203,6 +268,47 @@ function enterProject(id) {
           </el-select>
 
           <el-button size="small" @click="enterProject(selectedProjectId)">进入项目</el-button>
+
+          <el-popover placement="bottom-end" :width="360" trigger="click">
+            <template #reference>
+              <span class="notify-bell">
+                <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
+                  <el-button size="small" text :loading="notifyLoading">
+                    <el-icon><Bell /></el-icon>
+                  </el-button>
+                </el-badge>
+              </span>
+            </template>
+            <div class="notify-panel">
+              <div class="notify-head">
+                <span>未读通知</span>
+                <el-button
+                  size="small"
+                  text
+                  :disabled="!actorId || unreadCount === 0"
+                  @click="markAllNotificationsRead"
+                >
+                  全部已读
+                </el-button>
+              </div>
+              <el-empty
+                v-if="notifications.length === 0"
+                :description="actorId ? '没有未读通知' : '在设置页填写主体 ID 后可接收通知'"
+                :image-size="60"
+              />
+              <div v-else class="notify-list">
+                <div
+                  v-for="item in notifications"
+                  :key="item.notification_id"
+                  class="notify-item"
+                  @click="openNotification(item)"
+                >
+                  <div class="notify-title">{{ item.title }}</div>
+                  <div class="notify-meta">{{ item.kind }}　{{ item.created_at }}</div>
+                </div>
+              </div>
+            </div>
+          </el-popover>
 
           <el-tag
             v-loading="aiLoading"
@@ -298,5 +404,47 @@ function enterProject(id) {
   padding: 0;
   overflow-y: auto;
   background: var(--sap-bg);
+}
+
+.notify-bell {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.notify-panel {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.notify-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--sap-border-soft);
+  margin-bottom: 6px;
+}
+
+.notify-item {
+  padding: 8px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.notify-item:hover {
+  background: var(--sap-bg);
+}
+
+.notify-title {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notify-meta {
+  font-size: 12px;
+  color: var(--sap-muted);
+  margin-top: 2px;
 }
 </style>

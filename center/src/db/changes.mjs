@@ -2,6 +2,7 @@
 
 import { appendEvent } from './events.mjs';
 import { getArtifact } from './artifacts.mjs';
+import { notifyImpactToCheck } from '../notify/notifier.mjs';
 import {
   IMPACT_ASSESSMENT_STATUSES,
   IMPACT_RESOLUTIONS,
@@ -435,7 +436,13 @@ export function addImpactItem(db, input = {}) {
     refs: [changeId, targetId],
   });
 
-  return getImpactItem(db, impactItemId);
+  const created = getImpactItem(db, impactItemId);
+  try {
+    notifyImpactToCheck(db, created, change.project_id);
+  } catch {
+    // 忽略通知异常
+  }
+  return created;
 }
 
 /**

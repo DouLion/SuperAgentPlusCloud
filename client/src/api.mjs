@@ -415,4 +415,25 @@ export const api = {
     apiRequest('POST', `/material-extractions/${encodeURIComponent(extractionId)}/accept`, input, options),
   rejectExtraction: (extractionId, input, options) =>
     apiRequest('POST', `/material-extractions/${encodeURIComponent(extractionId)}/reject`, input, options),
+
+  // 通知（E 枝）：提醒不改变业务状态。
+  listNotifications: (query, options) =>
+    apiRequest('GET', `/notifications${queryString(query)}`, undefined, options),
+  unreadNotificationCount: (query, options) =>
+    apiRequest('GET', `/notifications/unread-count${queryString(query)}`, undefined, options),
+  readNotification: (notificationId, input, options) =>
+    apiRequest('POST', `/notifications/${encodeURIComponent(notificationId)}/read`, input, options),
+  readAllNotifications: (input, options) =>
+    apiRequest('POST', '/notifications/read-all', input, options),
+  scanNotifications: (input, options) => apiRequest('POST', '/notifications/scan', input, options),
+  listNotificationPrefs: (query, options) =>
+    apiRequest('GET', `/notification-prefs${queryString(query)}`, undefined, options),
+  saveNotificationPrefs: (input, options) =>
+    apiRequest('PUT', '/notification-prefs', input, options),
+
+  // 运行可靠性（E 枝）
+  createBackup: (input, options) => apiRequest('POST', '/admin/backup', input, options),
+  verifyBackup: (query, options) =>
+    apiRequest('GET', `/admin/backup/verify${queryString(query)}`, undefined, options),
+  adminHealth: (options) => apiRequest('GET', '/admin/health', undefined, options),
 };

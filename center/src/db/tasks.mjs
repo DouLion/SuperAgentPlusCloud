@@ -1,6 +1,7 @@
 // Center 任务与认领存储（T7 归置）。
 
 import { appendEvent } from './events.mjs';
+import { notifyTaskAvailable } from '../notify/notifier.mjs';
 import { TASK_STATUSES } from './enums.mjs';
 import { assertProjectExists } from './projects.mjs';
 import { getRequirement } from './requirements.mjs';
@@ -193,6 +194,13 @@ export function openTask(db, taskId, patch = {}) {
     refs: [taskId],
   });
 
-  return getTask(db, taskId);
+  const opened = getTask(db, taskId);
+  // 通知失败不影响业务：通知只是提醒。
+  try {
+    notifyTaskAvailable(db, opened);
+  } catch {
+    // 忽略通知异常，避免因提醒失败阻断任务开放
+  }
+  return opened;
 }
 

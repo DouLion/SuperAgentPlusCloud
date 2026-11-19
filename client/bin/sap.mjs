@@ -32,6 +32,8 @@ import { run as runCaps } from '../src/commands/caps.mjs';
 import { run as runCandidates } from '../src/commands/candidates.mjs';
 import { run as runObserve } from '../src/commands/observe.mjs';
 import { run as runMaterial } from '../src/commands/material.mjs';
+import { run as runNotify } from '../src/commands/notify.mjs';
+import { run as runAdmin } from '../src/commands/admin.mjs';
 
 /** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
 function extractToken(argv) {
@@ -87,6 +89,8 @@ const handlers = new Map([
   ['candidates', runCandidates],
   ['observe', runObserve],
   ['material', runMaterial],
+  ['notify', runNotify],
+  ['admin', runAdmin],
 ]);
 
 function main(argv) {

@@ -11,6 +11,77 @@ const formRef = ref(null);
 const needsRestart = ref([]);
 const status = ref(null);
 
+// 当前主体与通知偏好（E 枝）：面板不强制登录，主体 ID 存在本地。
+const actorId = ref(localStorage.getItem('sap.actorId') || '');
+const prefs = ref([]);
+const health = ref(null);
+const healthLoading = ref(false);
+
+const KIND_TEXT = {
+  task_available: '可认领任务',
+  review_requested: '待评审',
+  decision_required: '待判断需求',
+  impact_to_check: '待检查影响',
+  lease_expiring: '租约临期',
+  system: '系统消息',
+};
+
+function saveActorId(value) {
+  actorId.value = value.trim();
+  if (actorId.value) localStorage.setItem('sap.actorId', actorId.value);
+  else localStorage.removeItem('sap.actorId');
+  loadPrefs();
+}
+
+async function loadPrefs() {
+  if (!actorId.value) {
+    prefs.value = [];
+    return;
+  }
+  try {
+    const result = await api.listNotificationPrefs({ actor_id: actorId.value });
+    prefs.value = result.prefs ?? [];
+  } catch {
+    prefs.value = [];
+  }
+}
+
+async function togglePref(kind, enabled) {
+  if (!actorId.value) return;
+  try {
+    const result = await api.saveNotificationPrefs({
+      actor_id: actorId.value,
+      prefs: [{ kind, enabled }],
+    });
+    prefs.value = result.prefs ?? [];
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '保存通知偏好失败'));
+  }
+}
+
+async function loadHealth() {
+  healthLoading.value = true;
+  try {
+    health.value = await api.adminHealth();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '读取运行健康失败'));
+  } finally {
+    healthLoading.value = false;
+  }
+}
+
+async function backupNow() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const target = `backup-sap-${stamp}.db`;
+  try {
+    const result = await api.createBackup({ target });
+    ElMessage.success(`备份完成：${result.target}`);
+    await loadHealth();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '备份失败'));
+  }
+}
+
 const form = reactive({
   port: 8787,
   host: '127.0.0.1',
@@ -57,7 +128,11 @@ async function load() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadPrefs();
+  loadHealth();
+});
 
 async function submit() {
   try {
@@ -207,6 +282,82 @@ const restartHint = () => {
           <el-button @click="load">重置</el-button>
         </el-form-item>
       </el-form>
+
+      <el-divider content-position="left">通知</el-divider>
+      <el-form label-width="110px" class="settings-form">
+        <el-form-item label="当前主体">
+          <el-input
+            :model-value="actorId"
+            placeholder="act_...，用于接收站内通知"
+            @update:model-value="saveActorId"
+          />
+        </el-form-item>
+      </el-form>
+      <el-alert
+        v-if="!actorId"
+        type="info"
+        :closable="false"
+        show-icon
+        title="未填写主体"
+        description="填写主体 ID 后，顶栏铃铛会显示该主体的未读通知；通知只是提醒，不产生任何权限。"
+        class="settings-alert"
+      />
+      <el-table v-else :data="prefs" size="small">
+        <el-table-column label="类型" min-width="160">
+          <template #default="{ row }">{{ KIND_TEXT[row.kind] || row.kind }}</template>
+        </el-table-column>
+        <el-table-column label="接收" width="120">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="row.enabled"
+              @update:model-value="(value) => togglePref(row.kind, value)"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-divider content-position="left">运行健康</el-divider>
+      <div v-loading="healthLoading">
+        <el-alert
+          v-if="health && !health.ok"
+          type="error"
+          :closable="false"
+          show-icon
+          :title="`数据库完整性异常：${health.integrity.join(', ')}`"
+          class="settings-alert"
+        />
+        <el-descriptions v-if="health" :column="2" border size="small">
+          <el-descriptions-item label="完整性">
+            {{ health.ok ? '正常' : '异常' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Outbox 待投递">
+            {{ health.outbox.pending }}
+          </el-descriptions-item>
+          <el-descriptions-item label="过期未回收租约">
+            {{ health.expired_leases }}
+          </el-descriptions-item>
+          <el-descriptions-item label="24h 错误">
+            {{ health.errors_24h }}
+          </el-descriptions-item>
+          <el-descriptions-item label="任务数">
+            {{ health.tables.tasks }}
+          </el-descriptions-item>
+          <el-descriptions-item label="通知数">
+            {{ health.tables.notifications }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <div class="settings-actions">
+          <el-button size="small" @click="loadHealth">
+            <el-icon><Refresh /></el-icon>
+            刷新
+          </el-button>
+          <el-tooltip content="需要管理员 human 凭据（SAP_TOKEN）" placement="top">
+            <el-button size="small" type="primary" plain @click="backupNow">
+              立即备份
+            </el-button>
+          </el-tooltip>
+        </div>
+      </div>
     </el-card>
   </div>
 </template>
@@ -233,5 +384,11 @@ const restartHint = () => {
 
 .settings-form {
   margin-top: 8px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>

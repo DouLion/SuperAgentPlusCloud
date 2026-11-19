@@ -245,6 +245,22 @@ export const api = {
     request('POST', `/requirements/${encodeURIComponent(id)}/orchestrate`, input),
   adoptOrchestration: (suggestionId, input) =>
     request('POST', `/ai/suggestions/${encodeURIComponent(suggestionId)}/adopt-orchestration`, input),
+
+  // 通知（E 枝）
+  listNotifications: (query) => request('GET', `/notifications${queryString(query)}`),
+  unreadNotificationCount: (query) =>
+    request('GET', `/notifications/unread-count${queryString(query)}`),
+  readNotification: (id, input) =>
+    request('POST', `/notifications/${encodeURIComponent(id)}/read`, input),
+  readAllNotifications: (input) => request('POST', '/notifications/read-all', input),
+  scanNotifications: () => request('POST', '/notifications/scan', {}),
+  listNotificationPrefs: (query) => request('GET', `/notification-prefs${queryString(query)}`),
+  saveNotificationPrefs: (input) => request('PUT', '/notification-prefs', input),
+
+  // 运行可靠性（E 枝）
+  adminHealth: () => request('GET', '/admin/health'),
+  createBackup: (input) => request('POST', '/admin/backup', input),
+  verifyBackup: (query) => request('GET', `/admin/backup/verify${queryString(query)}`),
 };
 
 /** 统一错误文案：网络错误与 AI 未配置给出可操作提示，其余透出服务端中文错误。 */

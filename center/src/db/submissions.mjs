@@ -2,6 +2,7 @@
 
 import { appendEvent } from './events.mjs';
 import { enqueueFromEvent } from '../protocol/outbox.mjs';
+import { notifyReviewRequested } from '../notify/notifier.mjs';
 import { REVIEW_CONCLUSIONS } from './enums.mjs';
 import { assertClaimValid, activeOwnerClaim } from './claims.mjs';
 import { getTask } from './tasks.mjs';
@@ -139,6 +140,14 @@ export function createSubmission(db, input = {}) {
 
     const submission = getSubmission(db, submissionId);
     db.exec('COMMIT');
+    // 通知在事务外发送：提醒失败不应回滚已生效的提交。
+    if (isOwner) {
+      try {
+        notifyReviewRequested(db, task, submission, submittedBy);
+      } catch {
+        // 忽略通知异常
+      }
+    }
     return { ...submission, contribution: !isOwner };
   } catch (err) {
     db.exec('ROLLBACK');
