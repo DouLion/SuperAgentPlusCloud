@@ -6,6 +6,7 @@ import { api, errorMessage } from '../api.js';
 import { formatTime } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -232,7 +233,7 @@ onMounted(load);
           <div class="card-head">
             <div class="card-head__main">
               <div class="task-purpose">{{ task.purpose }}</div>
-              <div class="mono muted">{{ task.task_id }}</div>
+              <IdText :id="task.task_id" muted />
             </div>
             <StatusTag group="task" :value="task.status" />
           </div>
@@ -295,7 +296,7 @@ onMounted(load);
     <el-dialog v-model="claimVisible" :title="claimForm.role === 'collaborator' ? '作为协作者加入' : '认领任务'" width="480px">
       <el-form label-width="96px">
         <el-form-item label="任务">
-          <span class="mono">{{ claimForm.task?.task_id }}</span>
+          <IdText :id="claimForm.task?.task_id || ''" />
         </el-form-item>
         <el-form-item label="主体 ID" required>
           <el-input v-model="claimForm.actor" placeholder="worker 或 actor id" />

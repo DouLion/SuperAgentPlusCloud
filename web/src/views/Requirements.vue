@@ -6,6 +6,7 @@ import { api, errorMessage } from '../api.js';
 import { formatTime, OPTIONS } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -158,7 +159,7 @@ onMounted(load);
           <div class="card-head">
             <div class="card-head__main">
               <div class="requirement-text">{{ row.raw_text }}</div>
-              <div class="mono muted">{{ row.requirement_id }}</div>
+              <IdText :id="row.requirement_id" muted />
             </div>
             <StatusTag group="requirement" :value="row.status" />
           </div>

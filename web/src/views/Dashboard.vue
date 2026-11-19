@@ -9,6 +9,7 @@ import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
 import ProjectMetrics from '../components/ProjectMetrics.vue';
 import ActionQueue from '../components/ActionQueue.vue';
+import IdText from '../components/IdText.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -233,7 +234,7 @@ onMounted(load);
             >
               <div class="queue-item__title">{{ item.statement }}</div>
               <div class="queue-item__meta">
-                <span class="mono muted">{{ item.item_id }}</span>
+                <IdText :id="item.item_id" muted />
                 <span v-if="item.confirmed_by" class="muted">{{ item.confirmed_by }}</span>
               </div>
             </div>
@@ -304,7 +305,7 @@ onMounted(load);
           <div class="queue-item__title">{{ item.detail }}</div>
           <div class="queue-item__meta">
             <el-tag size="small" type="danger" effect="plain">{{ item.kind }}</el-tag>
-            <span class="mono muted">{{ item.task_id }}</span>
+            <IdText :id="item.task_id" muted />
           </div>
         </div>
       </div>
@@ -328,7 +329,7 @@ onMounted(load);
           <div class="event-head">
             <strong>{{ event.event_type }}</strong>
             <span v-if="event.actor" class="muted">{{ event.actor }}</span>
-            <span class="mono muted">{{ event.object_id }}</span>
+            <IdText :id="event.object_id" muted />
           </div>
           <div v-if="event.reason" class="muted">{{ event.reason }}</div>
         </el-timeline-item>

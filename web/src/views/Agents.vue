@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus';
 import { api, errorMessage, getToken, setToken } from '../api.js';
 import { formatTime } from '../status.js';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { PRESENCE_TEXT, PRESENCE_TYPE, STUCK_KIND_TEXT } from '../agents-meta.js';
 
 const loading = ref(false);
@@ -470,7 +471,8 @@ onMounted(() => {
         </el-table-column>
         <el-table-column label="项目" min-width="140">
           <template #default="{ row }">
-            <span class="mono muted">{{ row.project_id || '全部项目' }}</span>
+            <IdText v-if="row.project_id" :id="row.project_id" muted />
+            <span v-else class="muted">全部项目</span>
           </template>
         </el-table-column>
         <el-table-column label="有效期至" width="160">
@@ -512,14 +514,14 @@ onMounted(() => {
           <template v-if="stuck.some((item) => item.kind === kind)">
             <div class="panel__title" style="margin: 10px 0 6px">{{ STUCK_KIND_TEXT[kind] || kind }}</div>
             <el-table :data="stuck.filter((item) => item.kind === kind)" size="small">
-              <el-table-column label="任务" min-width="220">
+              <el-table-column label="任务" min-width="180">
                 <template #default="{ row }">
-                  <span class="mono">{{ row.task_id }}</span>
+                  <IdText :id="row.task_id" />
                 </template>
               </el-table-column>
-              <el-table-column label="项目" min-width="160">
+              <el-table-column label="项目" min-width="140">
                 <template #default="{ row }">
-                  <span class="mono muted">{{ row.project_id }}</span>
+                  <IdText :id="row.project_id" muted />
                 </template>
               </el-table-column>
               <el-table-column label="主体" min-width="140">

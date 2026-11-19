@@ -6,6 +6,8 @@ import { api, errorMessage } from '../api.js';
 import { formatTime } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
+import { shortId } from '../ids.js';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -417,7 +419,7 @@ onBeforeUnmount(() => {
           >
             <div class="panel__head">
               <span class="panel__title">提交版本</span>
-              <span class="mono muted">{{ submission.submission_id }}</span>
+              <IdText :id="submission.submission_id" muted />
             </div>
             <div class="desc-grid">
               <span class="desc-label">摘要</span>
@@ -438,7 +440,7 @@ onBeforeUnmount(() => {
                   class="mono"
                   style="margin-right: 6px"
                 >
-                  {{ ref.repo ? `${ref.repo}@` : '' }}{{ ref.hash || ref.sha || ref }}
+                  {{ ref.repo ? `${ref.repo}@` : '' }}{{ shortId(typeof ref === 'string' ? ref : (ref.hash || ref.sha || '')) }}
                   <el-tag
                     v-if="ref.verified === true"
                     size="small"
@@ -642,7 +644,7 @@ onBeforeUnmount(() => {
             <el-option
               v-for="submission in submissions"
               :key="submission.submission_id"
-              :label="`${submission.submission_id}｜${submission.summary}`"
+              :label="`${shortId(submission.submission_id)}｜${submission.summary}`"
               :value="submission.submission_id"
             />
           </el-select>

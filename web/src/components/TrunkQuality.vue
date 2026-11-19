@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import IdText from './IdText.vue';
 
 // 主干质量：条目若没有理由或来源，说明它无法被反驳，属于质量缺口。
 const props = defineProps({
@@ -26,7 +27,7 @@ const hasGap = computed(() => gaps.value.length > 0);
     <el-alert type="warning" :closable="false" show-icon title="主干质量缺口">
       <div class="suggestion-body">
         <div v-for="gap in gaps" :key="gap.item_id" class="row" style="margin-bottom: 4px">
-          <span class="mono">{{ gap.item_id }}</span>
+          <IdText :id="gap.item_id" />
           <span>{{ gap.statement }}</span>
           <el-tag v-if="gap.missingReason" type="warning" size="small" effect="plain">缺理由</el-tag>
           <el-tag v-if="gap.missingSource" type="warning" size="small" effect="plain">缺来源</el-tag>

@@ -6,6 +6,7 @@ import { api, errorMessage } from '../api.js';
 import { formatTime } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { go } from '../nav.js';
 
 const router = useRouter();
@@ -740,7 +741,7 @@ onMounted(load);
           <div class="card-head">
             <div class="card-head__main">
               <div class="project-name">{{ row.project.name }}</div>
-              <div class="mono muted">{{ row.project.project_id }}</div>
+              <IdText :id="row.project.project_id" muted />
             </div>
             <StatusTag group="project" :value="row.project.status" />
           </div>

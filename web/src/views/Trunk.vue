@@ -7,6 +7,8 @@ import { formatTime, OPTIONS, TRUNK_KIND_TEXT } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import EmptyState from '../components/EmptyState.vue';
 import TrunkQuality from '../components/TrunkQuality.vue';
+import IdText from '../components/IdText.vue';
+import { shortId } from '../ids.js';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -495,7 +497,7 @@ onMounted(() => {
               <span>{{ formatTime(selectedItem.valid_from) }}</span>
               <span class="desc-label">被替代为</span>
               <span v-if="selectedItem.superseded_by">
-                <span class="mono">{{ selectedItem.superseded_by }}</span>
+                <IdText :id="selectedItem.superseded_by" />
               </span>
               <span v-else>—</span>
             </div>
@@ -616,7 +618,7 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="旧条目">
           <el-select v-model="changeForm.old_item_ids" multiple style="width: 100%">
-            <el-option v-for="item in items" :key="item.item_id" :label="`${item.item_id}｜${item.statement}`" :value="item.item_id" />
+            <el-option v-for="item in items" :key="item.item_id" :label="`${shortId(item.item_id)}｜${item.statement}`" :value="item.item_id" />
           </el-select>
         </el-form-item>
         <el-form-item label="新条目">

@@ -7,6 +7,7 @@ import { formatTime, OPTIONS, TRUNK_KIND_TEXT } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import SuggestionCard from '../components/SuggestionCard.vue';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -421,7 +422,7 @@ onMounted(() => {
               <div class="row">
                 <span>建议等级：<strong>{{ advice.draft.assessed_level }}</strong></span>
                 <span>建议动作：{{ advice.draft.proposed_action }}</span>
-                <span class="muted mono">依据：{{ advice.suggestion.suggestion_id }}</span>
+                <span class="muted mono">依据：</span><IdText :id="advice.suggestion.suggestion_id" muted />
               </div>
               <div v-if="advice.draft.related_item_ids.length" class="row">
                 <span>依据条目：</span>
@@ -579,7 +580,7 @@ onMounted(() => {
                 </el-tag>
                 <el-tag v-if="!orchestrationAdoptable" size="small" type="danger">存在 must 违规，不可采纳</el-tag>
                 <el-tag v-else size="small" type="success">可采纳</el-tag>
-                <span class="muted mono">{{ orchestration.suggestion.suggestion_id }}</span>
+                <IdText :id="orchestration.suggestion.suggestion_id" muted />
               </div>
 
               <div v-if="orchestrationChecks.length" class="orchestration-checks">

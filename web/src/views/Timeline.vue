@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
 import { formatTime, STATUS_MAPS } from '../status.js';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -148,7 +149,7 @@ onMounted(() => {
               </el-tag>
               <strong>{{ event.event_type }}</strong>
             </div>
-            <div class="mono muted">对象：{{ event.object_id }}</div>
+            <div class="muted">对象：<IdText :id="event.object_id" muted /></div>
             <div v-if="event.actor" class="muted">操作人：{{ event.actor }}</div>
             <div v-if="event.reason" class="muted">理由：{{ event.reason }}</div>
           </div>

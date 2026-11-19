@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus';
 import { api, errorMessage } from '../api.js';
 import { formatTime } from '../status.js';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 
 const route = useRoute();
 const projectId = route.params.id;
@@ -39,7 +40,7 @@ async function submitSync() {
       local_path: syncForm.local_path.trim(),
       limit: syncForm.limit,
     });
-    ElMessage.success(`新增 ${result.inserted} 条，已存在 ${result.skipped} 条，最新 ${String(result.latest_sha || '').slice(0, 10)}`);
+    ElMessage.success(`新增 ${result.inserted} 条，已存在 ${result.skipped} 条，最新 ${String(result.latest_sha || '').slice(0, 7)}`);
     syncDialog.value = false;
     await loadRepositories(selected.value.repository_id);
   } catch (err) {
@@ -125,8 +126,10 @@ async function archive(row) {
 
 function commitOf(fact) {
   const payload = fact.payload || {};
+  const fullSha = String(payload.commit_sha || fact.external_id || '');
   return {
-    sha: String(payload.commit_sha || fact.external_id || '').slice(0, 10),
+    sha: fullSha.slice(0, 7),
+    full_sha: fullSha,
     ref: payload.ref || '—',
     author: payload.author || payload.committer || '—',
     message: payload.message || payload.summary || '',
@@ -198,7 +201,7 @@ onMounted(() => loadRepositories());
             <div class="card-header-row">
               <span class="mono">{{ selected.url }}</span>
               <span class="toolbar">
-                <span class="muted mono">{{ selected.last_branch || '—' }} @ {{ String(selected.last_head || '').slice(0, 10) }}</span>
+                <span class="muted mono">{{ selected.last_branch || '—' }} @ {{ String(selected.last_head || '').slice(0, 7) }}</span>
                 <span v-if="selected.last_synced_at" class="muted">{{ formatTime(selected.last_synced_at) }}</span>
                 <span v-if="selected.tracked_file_count" class="muted">{{ selected.tracked_file_count }} 文件</span>
                 <el-button size="small" type="primary" plain :disabled="selected.status !== 'active'" @click="openSync">
@@ -209,9 +212,9 @@ onMounted(() => loadRepositories());
           </template>
 
           <el-table :data="facts" size="small" v-loading="factLoading">
-            <el-table-column label="提交" width="110">
+            <el-table-column label="提交" width="130">
               <template #default="{ row }">
-                <span class="mono">{{ commitOf(row).sha }}</span>
+                <IdText :id="commitOf(row).full_sha" />
               </template>
             </el-table-column>
             <el-table-column label="分支" min-width="130">

@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, errorMessage } from '../api.js';
 import { formatTime } from '../status.js';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
 import { go } from '../nav.js';
 
 const route = useRoute();
@@ -354,7 +355,7 @@ onMounted(async () => {
                   <el-tag :type="STATUS_TAG[row.status]" size="small">
                     {{ STATUS_TEXT[row.status] }}
                   </el-tag>
-                  <span class="muted mono">{{ row.extraction_id }}</span>
+                  <IdText :id="row.extraction_id" muted />
                 </div>
 
                 <template v-if="row.kind === 'requirement'">

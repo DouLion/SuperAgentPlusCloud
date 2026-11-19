@@ -7,6 +7,8 @@ import { formatTime, OPTIONS, TRUNK_KIND_TEXT } from '../status.js';
 import StatusTag from '../components/StatusTag.vue';
 import SuggestionCard from '../components/SuggestionCard.vue';
 import EmptyState from '../components/EmptyState.vue';
+import IdText from '../components/IdText.vue';
+import { shortId } from '../ids.js';
 
 const route = useRoute();
 const projectId = route.params.id || route.params.projectId;
@@ -107,12 +109,12 @@ async function loadImpacts(changeId) {
 
 function itemLabel(id) {
   const item = itemById.value.get(id);
-  return item ? `${id}｜${item.statement}` : id;
+  return item ? item.statement : shortId(id);
 }
 
 function requirementLabel(id) {
   const requirement = requirementById.value.get(id);
-  return requirement ? `${id}｜${requirement.raw_text.slice(0, 40)}` : id;
+  return requirement ? requirement.raw_text.slice(0, 40) : shortId(id);
 }
 
 function addProposedItem() {
@@ -340,7 +342,7 @@ onMounted(() => {
       <div class="panel__head">
         <div>
           <div class="queue-item__meta">
-            <span class="mono">{{ change.change_id }}</span>
+            <IdText :id="change.change_id" muted />
             <StatusTag group="change" :value="change.status" size="small" />
           </div>
           <div class="muted" style="margin-top: 4px">理由：{{ change.reason }}</div>
@@ -437,7 +439,7 @@ onMounted(() => {
         </template>
         <div v-for="(item, index) in adviceMap[change.change_id].draft || []" :key="index" class="row">
           <el-tag size="small" effect="plain">{{ item.target_type }}</el-tag>
-          <span class="mono">{{ item.target_id }}</span>
+          <IdText :id="item.target_id" muted />
           <span class="muted">{{ item.reason }}</span>
         </div>
       </SuggestionCard>
@@ -470,7 +472,7 @@ onMounted(() => {
           >
             <div class="impact-row__main">
               <el-tag size="small" effect="plain">{{ row.target_type }}</el-tag>
-              <span class="mono">{{ row.target_id }}</span>
+              <IdText :id="row.target_id" muted />
               <span v-if="row.owner_id" class="muted">负责：{{ row.owner_id }}</span>
             </div>
 
@@ -528,7 +530,7 @@ onMounted(() => {
             <el-option
               v-for="item in trunkItems"
               :key="item.item_id"
-              :label="`${item.item_id}｜${item.statement}`"
+              :label="`${shortId(item.item_id)}｜${item.statement}`"
               :value="item.item_id"
             />
           </el-select>
