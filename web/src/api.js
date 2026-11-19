@@ -238,6 +238,18 @@ export const api = {
     request('GET', `/artifacts/${encodeURIComponent(id)}/impacts${queryString(query)}`),
   addArtifactImpact: (id, input) =>
     request('POST', `/artifacts/${encodeURIComponent(id)}/impacts`, input),
+
+  // 代码仓库
+  listRepositories: (projectId, query) =>
+    request('GET', `/projects/${encodeURIComponent(projectId)}/repositories${queryString(query)}`),
+  createRepository: (projectId, input) =>
+    request('POST', `/projects/${encodeURIComponent(projectId)}/repositories`, input),
+  getRepository: (id) => request('GET', `/repositories/${encodeURIComponent(id)}`),
+  updateRepository: (id, patch) => request('PATCH', `/repositories/${encodeURIComponent(id)}`, patch),
+  archiveRepository: (id, input) =>
+    request('POST', `/repositories/${encodeURIComponent(id)}/archive`, input),
+  listRepositoryFacts: (id, query) =>
+    request('GET', `/repositories/${encodeURIComponent(id)}/facts${queryString(query)}`),
   listImpacts: (query) => request('GET', `/impacts${queryString(query)}`),
 
   // 契约优先编排（T14）

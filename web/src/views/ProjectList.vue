@@ -252,8 +252,7 @@ async function completeDemo(projectId) {
   }
 
   // 材料
-  const materials = await api.listMaterials({ project_id: projectId });
-  if (!Array.isArray(materials) || materials.length === 0) {
+  const materials = await api.listMaterials({ project_id: projectId });  if (!Array.isArray(materials) || materials.length === 0) {
     await api.createMaterial({
       project_id: projectId,
       title: '演示会议纪要',
@@ -263,6 +262,18 @@ async function completeDemo(projectId) {
       content: DEMO_MEETING,
     });
     added.push('会议材料');
+  }
+
+  // 代码仓库：一个项目可以对应多个 git 地址，演示先登记主仓。
+  const repositories = await api.listRepositories(projectId);
+  if (!Array.isArray(repositories) || repositories.length === 0) {
+    await api.createRepository(projectId, {
+      name: '主仓',
+      url: 'https://github.com/DouLion/SuperAgentPlusCloud.git',
+      default_branch: 'master',
+      created_by: '演示',
+    });
+    added.push('代码仓库');
   }
 
   // 主体与成员

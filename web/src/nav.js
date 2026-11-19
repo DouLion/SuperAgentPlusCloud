@@ -23,6 +23,7 @@ export function projectNavGroups(id) {
         { name: 'trunk', title: '主干地图', icon: 'Share' },
         { name: 'requirements', title: '需求工作台', icon: 'Document' },
         { name: 'materials', title: '材料与提取', icon: 'FolderOpened' },
+        { name: 'repositories', title: '代码仓库', icon: 'Coin' },
       ],
     },
     {

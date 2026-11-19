@@ -14,6 +14,7 @@ import Setup from './views/Setup.vue';
 import Settings from './views/Settings.vue';
 import Agents from './views/Agents.vue';
 import Contracts from './views/Contracts.vue';
+import Repositories from './views/Repositories.vue';
 
 // URL 契约见 docs/08 §3：页面统一在 /sap-cloud/* 下，项目内部嵌套在 /project/:id/*。
 const routes = [
@@ -55,6 +56,12 @@ const routes = [
     name: 'materials',
     component: Materials,
     meta: { title: '材料与提取' },
+  },
+  {
+    path: '/project/:id/repositories',
+    name: 'repositories',
+    component: Repositories,
+    meta: { title: '代码仓库' },
   },
   {
     path: '/project/:id/requirements/:requirementId',

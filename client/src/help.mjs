@@ -238,6 +238,12 @@ export const PLANNED_COMMANDS = [
     implemented: true,
   },
   {
+    name: 'repo',
+    usage: 'sap repo add --project <id> --name <名称> --url <git 地址> [--branch main] ｜ list --project <id> ｜ show --repo <id> ｜ archive --repo <id> ｜ commits --repo <id>',
+    desc: '项目代码仓库：一个项目可登记多个 git 地址，提交事实按仓库归属',
+    implemented: true,
+  },
+  {
     name: 'fact',
     usage: 'sap fact add --project <id> --source git|ci|issue|chat|other --kind commit|build|test_run|issue|message --external-id <id> --file payload.json ｜ list ｜ show --fact <id>',
     desc: 'G 枝外部事实：只读证据，可引用到提交与任务，不改变任务状态',

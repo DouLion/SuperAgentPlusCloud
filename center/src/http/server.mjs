@@ -29,6 +29,7 @@ import { ROUTES as MATERIAL_ROUTES } from './routes/materials.mjs';
 import { ROUTES as NOTIFICATION_ROUTES } from './routes/notifications.mjs';
 import { ROUTES as ADMIN_ROUTES } from './routes/admin.mjs';
 import { ROUTES as INTEGRATION_ROUTES } from './routes/integrations.mjs';
+import { ROUTES as REPOSITORY_ROUTES } from './routes/repositories.mjs';
 import {
   CURRENT_PROTOCOL_VERSION,
   PROTOCOL_VERSION_HEADER,
@@ -128,6 +129,7 @@ export const ROUTES = [
   ...NOTIFICATION_ROUTES,
   ...ADMIN_ROUTES,
   ...INTEGRATION_ROUTES,
+  ...REPOSITORY_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */

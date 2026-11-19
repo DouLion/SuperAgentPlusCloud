@@ -440,6 +440,18 @@ export const api = {
   // 外部工具只读适配（G 枝）：事实只作证据，不改变任务状态。
   createFact: (source, input, options) =>
     apiRequest('POST', `/integrations/${encodeURIComponent(source)}/facts`, input, options),
+  listRepositories: (projectId, query, options) =>
+    apiRequest('GET', `/projects/${encodeURIComponent(projectId)}/repositories${queryString(query)}`, undefined, options),
+  createRepository: (projectId, input, options) =>
+    apiRequest('POST', `/projects/${encodeURIComponent(projectId)}/repositories`, input, options),
+  getRepository: (repositoryId, options) =>
+    apiRequest('GET', `/repositories/${encodeURIComponent(repositoryId)}`, undefined, options),
+  updateRepository: (repositoryId, patch, options) =>
+    apiRequest('PATCH', `/repositories/${encodeURIComponent(repositoryId)}`, patch, options),
+  archiveRepository: (repositoryId, input, options) =>
+    apiRequest('POST', `/repositories/${encodeURIComponent(repositoryId)}/archive`, input, options),
+  listRepositoryFacts: (repositoryId, query, options) =>
+    apiRequest('GET', `/repositories/${encodeURIComponent(repositoryId)}/facts${queryString(query)}`, undefined, options),
   listFacts: (query, options) =>
     apiRequest('GET', `/integrations/facts${queryString(query)}`, undefined, options),
   getFact: (factId, options) =>

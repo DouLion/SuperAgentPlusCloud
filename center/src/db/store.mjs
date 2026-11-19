@@ -22,6 +22,7 @@ const TABLES = [
   'command_ledger',
   'task_fact_links',
   'external_facts',
+  'project_repositories',
   'material_extractions',
   'materials',
   'actor_capabilities',
@@ -289,6 +290,8 @@ export function migrate(db = openStore()) {
   ensureColumn(db, 'command_ledger', 'replay_count', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'actors', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'submissions', 'external_fact_ids', "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(db, 'external_facts', 'repository_id', 'TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_external_facts_repo ON external_facts (repository_id, received_at)');
   return db;
 }
 

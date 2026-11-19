@@ -35,6 +35,7 @@ import { run as runMaterial } from '../src/commands/material.mjs';
 import { run as runNotify } from '../src/commands/notify.mjs';
 import { run as runAdmin } from '../src/commands/admin.mjs';
 import { run as runFact } from '../src/commands/fact.mjs';
+import { run as runRepo } from '../src/commands/repo.mjs';
 import { run as runTask } from '../src/commands/task.mjs';
 import { run as runSubscribe } from '../src/commands/subscribe.mjs';
 
@@ -95,6 +96,7 @@ const handlers = new Map([
   ['notify', runNotify],
   ['admin', runAdmin],
   ['fact', runFact],
+  ['repo', runRepo],
   ['task', runTask],
   ['subscribe', runSubscribe],
 ]);

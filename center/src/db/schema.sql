@@ -554,19 +554,43 @@ CREATE TABLE IF NOT EXISTS notification_prefs (
 );
 
 
+-- 项目代码仓库 ------------------------------------------------------------
+-- 一个项目可以对应多个 git 地址（多仓库 / 前后端分仓 / 历史仓库）。
+-- git 提交是既有项目最硬的事实来源：记忆会骗人，代码不会。
+CREATE TABLE IF NOT EXISTS project_repositories (
+  repository_id  TEXT PRIMARY KEY,
+  project_id     TEXT NOT NULL REFERENCES projects (project_id),
+  name           TEXT NOT NULL,
+  url            TEXT NOT NULL,
+  provider       TEXT NOT NULL DEFAULT 'other'
+                 CHECK (provider IN ('github', 'gitlab', 'gitee', 'azure', 'other')),
+  default_branch TEXT,
+  status         TEXT NOT NULL DEFAULT 'active'
+                 CHECK (status IN ('active', 'archived')),
+  created_by     TEXT,
+  created_at     TEXT NOT NULL,
+  archived_at    TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_project_repositories_url
+  ON project_repositories (project_id, url);
+CREATE INDEX IF NOT EXISTS idx_project_repositories_project
+  ON project_repositories (project_id, status);
+
 -- 外部工具只读事实（G 枝）------------------------------------------------------
 -- 外部事实只是证据：可以引用、可以关联到任务，但不改变任何业务状态。
 CREATE TABLE IF NOT EXISTS external_facts (
-  fact_id     TEXT PRIMARY KEY,
-  project_id  TEXT NOT NULL REFERENCES projects (project_id),
-  source      TEXT NOT NULL CHECK (source IN ('git', 'ci', 'issue', 'chat', 'other')),
-  kind        TEXT NOT NULL CHECK (kind IN ('commit', 'build', 'test_run', 'issue', 'message')),
-  external_id TEXT NOT NULL,
-  payload     TEXT NOT NULL,
-  received_at TEXT NOT NULL,
-  actor_id    TEXT,
-  dedupe_key  TEXT NOT NULL UNIQUE,
-  created_at  TEXT NOT NULL
+  fact_id       TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL REFERENCES projects (project_id),
+  repository_id TEXT REFERENCES project_repositories (repository_id),
+  source        TEXT NOT NULL CHECK (source IN ('git', 'ci', 'issue', 'chat', 'other')),
+  kind          TEXT NOT NULL CHECK (kind IN ('commit', 'build', 'test_run', 'issue', 'message')),
+  external_id   TEXT NOT NULL,
+  payload       TEXT NOT NULL,
+  received_at   TEXT NOT NULL,
+  actor_id      TEXT,
+  dedupe_key    TEXT NOT NULL UNIQUE,
+  created_at    TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_external_facts_project ON external_facts (project_id, source);

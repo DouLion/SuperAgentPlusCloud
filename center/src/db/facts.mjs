@@ -2,6 +2,7 @@
 
 import { appendEvent } from './events.mjs';
 import { assertProjectExists } from './projects.mjs';
+import { resolveRepository } from './repositories.mjs';
 import { getTask } from './tasks.mjs';
 import {
   codedError,
@@ -42,9 +43,11 @@ function validatePayload(source, kind, payload) {
   }
 }
 
-/** 幂等键：同一来源、类型、外部 ID 视为同一事实。 */
-export function factDedupeKey(source, kind, externalId) {
-  return `${source}:${kind}:${externalId}`;
+/** 幂等键：同一仓库、来源、类型、外部 ID 视为同一事实。 */
+export function factDedupeKey(source, kind, externalId, repositoryId = null) {
+  return repositoryId
+    ? `${source}:${kind}:${repositoryId}:${externalId}`
+    : `${source}:${kind}:${externalId}`;
 }
 
 /**
@@ -63,7 +66,19 @@ export function createFact(db, input = {}) {
   const payload = pick(input, 'payload') ?? {};
   validatePayload(source, kind, payload);
 
-  const dedupeKey = factDedupeKey(source, kind, externalId);
+  // git 事实应落在具体仓库上；项目已登记仓库时必须指明，避免多仓来源混淆。
+  const repository = resolveRepository(db, projectId, input);
+  if (source === 'git' && !repository) {
+    const registered = db.prepare(
+      'SELECT COUNT(*) AS n FROM project_repositories WHERE project_id = ?',
+    ).get(projectId).n;
+    if (Number(registered) > 0) {
+      throw codedError('REPOSITORY_REQUIRED', '项目已登记仓库，git 事实需指明 repository_id 或 repository_url', 400);
+    }
+  }
+  const repositoryId = repository?.repository_id ?? null;
+
+  const dedupeKey = factDedupeKey(source, kind, externalId, repositoryId);
   const existing = db.prepare('SELECT * FROM external_facts WHERE dedupe_key = ?').get(dedupeKey);
   if (existing) return { fact: parseFact(existing), deduplicated: true };
 
@@ -71,9 +86,9 @@ export function createFact(db, input = {}) {
   const now = nowIso();
   const actorId = pick(input, 'actor_id', 'actorId') ?? null;
   db.prepare(`INSERT INTO external_facts (
-    fact_id, project_id, source, kind, external_id, payload, received_at, actor_id, dedupe_key, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    factId, projectId, source, kind, externalId, encodeJson(payload), now, actorId, dedupeKey, now,
+    fact_id, project_id, repository_id, source, kind, external_id, payload, received_at, actor_id, dedupe_key, created_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    factId, projectId, repositoryId, source, kind, externalId, encodeJson(payload), now, actorId, dedupeKey, now,
   );
 
   appendEvent(db, {
@@ -84,7 +99,7 @@ export function createFact(db, input = {}) {
     actor: actorId ?? source,
     occurred_at: now,
     reason: `${source}/${kind}:${externalId}`,
-    refs: [externalId],
+    refs: [externalId, ...(repositoryId ? [repositoryId] : [])],
   });
 
   return { fact: getFact(db, factId), deduplicated: false };
@@ -97,12 +112,22 @@ export function getFact(db, factId) {
 export function listFacts(db, query = {}) {
   const clauses = [];
   const params = [];
-  for (const [key, column] of [['project_id', 'project_id'], ['source', 'source'], ['kind', 'kind']]) {
+  for (const [key, column] of [
+    ['project_id', 'project_id'],
+    ['repository_id', 'repository_id'],
+    ['source', 'source'],
+    ['kind', 'kind'],
+  ]) {
     const value = pick(query, key, key === 'project_id' ? 'projectId' : key);
     if (value !== undefined) {
       clauses.push(`${column} = ?`);
       params.push(value);
     }
+  }
+  const externalId = pick(query, 'external_id', 'externalId');
+  if (externalId !== undefined) {
+    clauses.push('external_id = ?');
+    params.push(externalId);
   }
   const limit = Math.min(Math.max(Number(query.limit) || 100, 1), 500);
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -175,6 +200,7 @@ export function summarizeFact(fact) {
     source: fact.source,
     kind: fact.kind,
     external_id: fact.external_id,
+    repository_id: fact.repository_id ?? null,
     summary: String(summary).slice(0, 200),
     received_at: fact.received_at,
   };
