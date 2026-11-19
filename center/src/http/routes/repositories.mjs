@@ -11,7 +11,7 @@ import {
   repositorySummary,
   updateRepository,
 } from '../../db/repositories.mjs';
-import { listRepositoryCommits, syncRepositoryFromGit } from '../../git/sync.mjs';
+import { listRepositoryCommits, syncRepository } from '../../git/sync.mjs';
 
 function requireRepository(db, repositoryId) {
   const repository = getRepository(db, repositoryId);
@@ -86,7 +86,7 @@ export const ROUTES = [
         return { status: 404, body: { ok: false, code: 'REPOSITORY_NOT_FOUND', error: `仓库不存在：${params.id}` } };
       }
       guardWrite(db, req, repository.project_id);
-      return { status: 200, body: await syncRepositoryFromGit(db, params.id, body) };
+      return { status: 200, body: await syncRepository(db, params.id, body) };
     },
   },
   {

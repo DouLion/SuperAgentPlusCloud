@@ -79,21 +79,55 @@ test('repo commits：打印提交号与分支', async () => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({
       repository_id: 'repo_1',
-      facts: [{
-        fact_id: 'fact_1', source: 'git', kind: 'commit', external_id: 'abc123456789',
-        payload: { commit_sha: 'abc123456789', ref: 'refs/heads/main', message: 'feat: 登录' },
-        received_at: '2026-11-19T00:00:00.000Z',
+      head: 'abc123456789',
+      branch: 'main',
+      synced_at: '2026-11-19T00:00:00.000Z',
+      commits: [{
+        fact_id: 'fact_1',
+        sha: 'abc123456789',
+        author_name: '演示开发者',
+        committed_at: '2026-11-19T00:00:00.000Z',
+        subject: 'feat: 登录',
+        files_changed: ['src/login.mjs'],
       }],
     }));
   });
   const sink = collect();
   try {
-    const code = await run(['commits', '--repo', 'repo_1'], { ...sink.io, url });
+    const code = await run(['commits', 'repo_1'], { ...sink.io, url });
     assert.equal(code, 0);
     const text = sink.lines.join('\n');
     assert.match(text, /abc123456789/);
-    assert.match(text, /refs\/heads\/main/);
+    assert.match(text, /main/);
     assert.match(text, /feat: 登录/);
+  } finally {
+    server.close();
+  }
+});
+
+test('repo sync：调用同步接口并打印新增与最新提交', async () => {
+  let seen;
+  const { server, url } = await startServer((req, res) => {
+    seen = { method: req.method, url: req.url };
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      repository_id: 'repo_1',
+      inserted: 2,
+      skipped: 1,
+      latest_sha: 'abc123456789',
+      branch: 'main',
+      synced_at: '2026-11-19T00:00:00.000Z',
+    }));
+  });
+  const sink = collect();
+  try {
+    const code = await run(['sync', 'repo_1', '--limit', '20'], { ...sink.io, url });
+    assert.equal(code, 0);
+    assert.equal(seen.method, 'POST');
+    assert.equal(seen.url, '/sap-cloud/api/repositories/repo_1/sync');
+    const text = sink.lines.join('\n');
+    assert.match(text, /新增 2/);
+    assert.match(text, /abc123456789/);
   } finally {
     server.close();
   }

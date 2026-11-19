@@ -18,7 +18,7 @@ const facts = ref([]);
 const factLoading = ref(false);
 const dialog = ref(false);
 const saving = ref(false);
-const form = reactive({ name: '', url: '', default_branch: '', provider: 'other' });
+const form = reactive({ name: '', url: '', local_path: '', default_branch: '', provider: 'other' });
 const syncDialog = ref(false);
 const syncing = ref(false);
 const syncForm = reactive({ local_path: '', limit: 50 });
@@ -39,7 +39,7 @@ async function submitSync() {
       local_path: syncForm.local_path.trim(),
       limit: syncForm.limit,
     });
-    ElMessage.success(`新增 ${result.commits_added} 条提交，读取 ${result.tracked_files} 个文件`);
+    ElMessage.success(`新增 ${result.inserted} 条，已存在 ${result.skipped} 条，最新 ${String(result.latest_sha || '').slice(0, 10)}`);
     syncDialog.value = false;
     await loadRepositories(selected.value.repository_id);
   } catch (err) {
@@ -85,20 +85,21 @@ function selectRepository(row) {
 }
 
 function openDialog() {
-  Object.assign(form, { name: '', url: '', default_branch: '', provider: 'other' });
+  Object.assign(form, { name: '', url: '', local_path: '', default_branch: '', provider: 'other' });
   dialog.value = true;
 }
 
 async function submit() {
-  if (!form.name.trim() || !form.url.trim()) {
-    ElMessage.warning('名称与地址必填');
+  if (!form.name.trim() || (!form.url.trim() && !form.local_path.trim())) {
+    ElMessage.warning('名称与地址（或本地路径）必填');
     return;
   }
   saving.value = true;
   try {
     const created = await api.createRepository(projectId, {
       name: form.name.trim(),
-      url: form.url.trim(),
+      url: form.url.trim() || form.local_path.trim(),
+      local_path: form.local_path.trim() || undefined,
       default_branch: form.default_branch.trim() || null,
       provider: form.provider === 'other' ? undefined : form.provider,
     });
@@ -155,7 +156,12 @@ onMounted(() => loadRepositories());
           highlight-current-row
           @current-change="(row) => row && selectRepository(row)"
         >
-          <el-table-column prop="name" label="名称" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="name" label="名称" min-width="110" show-overflow-tooltip />
+          <el-table-column label="本地路径" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="mono">{{ row.local_path || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="服务商" width="90">
             <template #default="{ row }">{{ PROVIDER_TEXT[row.provider] || row.provider }}</template>
           </el-table-column>
@@ -248,6 +254,9 @@ onMounted(() => loadRepositories());
         </el-form-item>
         <el-form-item label="地址">
           <el-input v-model="form.url" placeholder="https://github.com/acme/web.git" />
+        </el-form-item>
+        <el-form-item label="本地路径">
+          <el-input v-model="form.local_path" placeholder="D:\code\project" />
         </el-form-item>
         <el-form-item label="默认分支">
           <el-input v-model="form.default_branch" placeholder="main" />

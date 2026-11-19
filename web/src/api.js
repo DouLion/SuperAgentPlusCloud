@@ -254,6 +254,8 @@ export const api = {
     request('POST', `/repositories/${encodeURIComponent(id)}/sync`, input),
   listRepositoryCommits: (id, query) =>
     request('GET', `/repositories/${encodeURIComponent(id)}/commits${queryString(query)}`),
+  verifySubmissionCommits: (submissionId) =>
+    request('POST', `/submissions/${encodeURIComponent(submissionId)}/verify-commits`, {}),
   listImpacts: (query) => request('GET', `/impacts${queryString(query)}`),
 
   // 契约优先编排（T14）

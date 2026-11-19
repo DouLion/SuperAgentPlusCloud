@@ -66,10 +66,11 @@ export function createRepository(db, input = {}) {
   const now = nowIso();
   const createdBy = pick(input, 'created_by', 'createdBy') ?? null;
   db.prepare(`INSERT INTO project_repositories (
-    repository_id, project_id, name, url, provider, default_branch, status, created_by, created_at, archived_at
-  ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)`).run(
+    repository_id, project_id, name, url, provider, default_branch, status, created_by, created_at, archived_at, local_path
+  ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL, ?)`).run(
     repositoryId, projectId, name, url, provider,
     pick(input, 'default_branch', 'defaultBranch') ?? null, createdBy, now,
+    pick(input, 'local_path', 'localPath') ?? null,
   );
 
   appendEvent(db, {
@@ -104,9 +105,10 @@ export function updateRepository(db, repositoryId, patch = {}) {
   }
 
   const defaultBranch = pick(patch, 'default_branch', 'defaultBranch') ?? repository.default_branch;
+  const localPath = pick(patch, 'local_path', 'localPath') ?? repository.local_path;
   db.prepare(`UPDATE project_repositories
-    SET name = ?, url = ?, provider = ?, default_branch = ? WHERE repository_id = ?`)
-    .run(name, url, provider, defaultBranch, repositoryId);
+    SET name = ?, url = ?, provider = ?, default_branch = ?, local_path = ? WHERE repository_id = ?`)
+    .run(name, url, provider, defaultBranch, localPath, repositoryId);
 
   appendEvent(db, {
     project_id: repository.project_id,

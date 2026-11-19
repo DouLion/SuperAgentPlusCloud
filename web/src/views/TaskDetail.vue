@@ -139,8 +139,7 @@ const deliveryChain = computed(() => {
   return events.sort((a, b) => (a.time < b.time ? 1 : -1));
 });
 
-async function load() {
-  loading.value = true;
+async function load() {  loading.value = true;
   try {
     const [taskRow, claimRows, submissionRows] = await Promise.all([
       api.getTask(taskId),
@@ -163,6 +162,20 @@ async function load() {
     ElMessage.error(errorMessage(err, '加载任务详情失败'));
   } finally {
     loading.value = false;
+  }
+}
+
+async function verifyCommits(submission) {
+  try {
+    const result = await api.verifySubmissionCommits(submission.submission_id);
+    if (result.verified.length) {
+      ElMessage.success(`已核对 ${result.verified.length} 条提交引用`);
+    } else {
+      ElMessage.warning('未找到对应的 git 提交事实，请先同步仓库');
+    }
+    submissions.value = await api.listSubmissions(taskId);
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '核对提交失败'));
   }
 }
 
@@ -425,8 +438,30 @@ onBeforeUnmount(() => {
                   class="mono"
                   style="margin-right: 6px"
                 >
-                  {{ ref.repo }}@{{ ref.hash }}
+                  {{ ref.repo ? `${ref.repo}@` : '' }}{{ ref.hash || ref.sha || ref }}
+                  <el-tag
+                    v-if="ref.verified === true"
+                    size="small"
+                    type="success"
+                    effect="plain"
+                    style="margin-left: 4px"
+                  >已核对</el-tag>
+                  <el-tag
+                    v-else-if="ref.verified === false"
+                    size="small"
+                    type="danger"
+                    effect="plain"
+                    style="margin-left: 4px"
+                  >未找到</el-tag>
+                  <el-tag
+                    v-else
+                    size="small"
+                    type="info"
+                    effect="plain"
+                    style="margin-left: 4px"
+                  >未核对</el-tag>
                 </el-tag>
+                <el-button size="small" text @click="verifyCommits(submission)">核对提交</el-button>
               </span>
             </div>
 

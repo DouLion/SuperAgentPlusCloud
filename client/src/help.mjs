@@ -239,8 +239,14 @@ export const PLANNED_COMMANDS = [
   },
   {
     name: 'repo',
-    usage: 'sap repo add --project <id> --name <名称> --url <git 地址> [--branch main] ｜ list --project <id> ｜ show --repo <id> ｜ archive --repo <id> ｜ sync --repo <id> --path <本地路径> ｜ history --repo <id> ｜ commits --repo <id>',
-    desc: '项目代码仓库：一个项目可登记多个 git 地址，可从本地 git 同步真实提交与文件清单',
+    usage: 'sap repo add --project <id> --name <名称> [--path <本地路径>] [--url <git 地址>] [--branch main] ｜ list --project <id> ｜ show <id> ｜ archive <id> ｜ sync <id> [--limit N] ｜ commits <id>',
+    desc: '项目代码仓库：登记多个 git 来源，从本地只读同步真实提交',
+    implemented: true,
+  },
+  {
+    name: 'verify',
+    usage: 'sap verify --submission <sub_id>',
+    desc: '核对提交引用的 commit 是否真实存在于项目 git 事实中',
     implemented: true,
   },
   {

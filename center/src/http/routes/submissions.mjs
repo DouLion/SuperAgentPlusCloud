@@ -1,6 +1,11 @@
 // Center HTTP 路由：提交与评审（T7 归置；P1 接入人类专属授权）。
 
-import { createReview, getSubmission, listReviews } from '../../db/submissions.mjs';
+import {
+  createReview,
+  getSubmission,
+  listReviews,
+  verifySubmissionCommits,
+} from '../../db/submissions.mjs';
 import { getTask } from '../../db/tasks.mjs';
 import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
@@ -34,6 +39,16 @@ export const ROUTES = [
       const review = createReview(db, payload);
       stampActorType(db, 'reviews', 'review_id', review.review_id, auth.actor_type);
       return { status: 201, body: { ...review, reviewer_actor_type: auth.actor_type } };
+    },
+  },
+  {
+    method: 'POST',
+    pattern: '/submissions/:id/verify-commits',
+    handler: ({ params, body, db }) => {
+      if (!getSubmission(db, params.id)) {
+        return { status: 404, body: { ok: false, error: `提交不存在：${params.id}` } };
+      }
+      return { status: 200, body: verifySubmissionCommits(db, params.id, body) };
     },
   },
   {

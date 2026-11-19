@@ -38,6 +38,7 @@ import { run as runFact } from '../src/commands/fact.mjs';
 import { run as runRepo } from '../src/commands/repo.mjs';
 import { run as runTask } from '../src/commands/task.mjs';
 import { run as runSubscribe } from '../src/commands/subscribe.mjs';
+import { run as runVerify } from '../src/commands/verify.mjs';
 
 /** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
 function extractToken(argv) {
@@ -97,6 +98,7 @@ const handlers = new Map([
   ['admin', runAdmin],
   ['fact', runFact],
   ['repo', runRepo],
+  ['verify', runVerify],
   ['task', runTask],
   ['subscribe', runSubscribe],
 ]);

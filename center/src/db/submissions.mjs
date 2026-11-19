@@ -26,10 +26,30 @@ function parseSubmission(row) {
   if (!row) return null;
   return {
     ...row,
-    commit_refs: decodeJson(row.commit_refs, []),
+    commit_refs: decodeJson(row.commit_refs, []).map(withVerification),
     known_gaps: decodeJson(row.known_gaps, []),
     artifacts: decodeJson(row.artifacts, []),
     external_fact_ids: decodeJson(row.external_fact_ids, []),
+  };
+}
+
+/** 提取提交引用里的 hash；兼容 hash / sha / commit_sha 三种写法。 */
+function refHash(ref) {
+  if (typeof ref === 'string') return ref.trim();
+  if (!ref || typeof ref !== 'object') return '';
+  return String(ref.hash ?? ref.sha ?? ref.commit_sha ?? '').trim();
+}
+
+/** 读取视图：保证每条引用都有 verified 字段，未核对为 null。 */
+function withVerification(ref) {
+  const hash = refHash(ref);
+  if (typeof ref === 'string') return { hash, verified: null };
+  return {
+    ...ref,
+    hash,
+    verified: ref.verified === undefined ? null : ref.verified,
+    repository_id: ref.repository_id ?? null,
+    verified_at: ref.verified_at ?? null,
   };
 }
 
@@ -199,7 +219,60 @@ export function createSubmission(db, input = {}) {
   }
 }
 
-/** 按 ID 查询提交；不存在返回 null。附带外部事实摘要，便于核对证据来源。 */
+/**
+ * 核对提交引用的 commit 是否真实存在于本项目的 git 事实中。
+ * 只写 commit_refs 的核对标记，不改变提交与任务状态。
+ */
+export function verifySubmissionCommits(db, submissionId, input = {}) {
+  const submission = getSubmission(db, submissionId);
+  if (!submission) throw Object.assign(new Error(`提交不存在：${submissionId}`), { status: 404 });
+  const task = getTask(db, submission.task_id);
+  const projectId = task?.project_id;
+  if (!projectId) throw Object.assign(new Error('提交关联的任务不存在'), { status: 404 });
+
+  const checkedAt = nowIso();
+  const verified = [];
+  const unverified = [];
+
+  const refs = submission.commit_refs.map((ref) => {
+    const hash = refHash(ref);
+    if (!hash) {
+      unverified.push({ hash: '', reason: 'MISSING_HASH' });
+      return { ...ref, verified: false, repository_id: null, verified_at: checkedAt };
+    }
+    // 精确匹配优先；短哈希只有唯一前缀命中才判定为已核对。
+    let fact = db.prepare(`SELECT fact_id, repository_id FROM external_facts
+      WHERE project_id = ? AND source = 'git' AND kind = 'commit' AND external_id = ?`).get(projectId, hash);
+    if (!fact) {
+      const prefix = db.prepare(`SELECT fact_id, repository_id FROM external_facts
+        WHERE project_id = ? AND source = 'git' AND kind = 'commit' AND external_id LIKE ? LIMIT 2`)
+        .all(projectId, `${hash}%`);
+      if (prefix.length === 1) fact = prefix[0];
+    }
+    if (fact) {
+      verified.push({ hash, repository_id: fact.repository_id ?? null, fact_id: fact.fact_id });
+      return { ...ref, hash, verified: true, repository_id: fact.repository_id ?? null, verified_at: checkedAt };
+    }
+    unverified.push({ hash, reason: 'NOT_FOUND' });
+    return { ...ref, hash, verified: false, repository_id: null, verified_at: checkedAt };
+  });
+
+  db.prepare('UPDATE submissions SET commit_refs = ? WHERE submission_id = ?')
+    .run(encodeJson(refs), submissionId);
+
+  appendEvent(db, {
+    project_id: projectId,
+    object_type: 'submission',
+    object_id: submissionId,
+    event_type: 'submission.commits_verified',
+    actor: pick(input, 'actor_id', 'actorId') ?? 'system',
+    occurred_at: checkedAt,
+    reason: `已核对 ${verified.length} / 未找到 ${unverified.length}`,
+    refs: verified.map((one) => one.hash),
+  });
+
+  return { verified, unverified, checked_at: checkedAt };
+}
 export function getSubmission(db, submissionId) {
   const submission = parseSubmission(
     db.prepare('SELECT * FROM submissions WHERE submission_id = ?').get(submissionId),

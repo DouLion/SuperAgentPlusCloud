@@ -230,8 +230,8 @@ test('提交：任务置 submitted，重复提交生成两条记录且 JSON 字�
   assert.match(first.submission_id, /^sub_/);
   assert.equal(first.claim_id, claim.claim_id);
   assert.deepEqual(first.commit_refs, [
-    { repo: 'sap-center', branch: 'main', hash: 'abc123' },
-    'sap-client@def456',
+    { repo: 'sap-center', branch: 'main', hash: 'abc123', verified: null, repository_id: null, verified_at: null },
+    { hash: 'sap-client@def456', verified: null },
   ]);
   assert.deepEqual(first.known_gaps, ['未覆盖 Windows 路径']);
   assert.deepEqual(first.artifacts, ['test-report.txt']);
@@ -565,7 +565,9 @@ test('HTTP：提交与评审路由、状态码与错误映射', async () => {
 
     const list = await fetch(`${base}/tasks/${taskId}/submissions`).then((res) => res.json());
     assert.equal(list.length, 1);
-    assert.deepEqual(list[0].commit_refs, [{ repo: 'sap-center', hash: 'abc123' }]);
+    assert.deepEqual(list[0].commit_refs, [
+      { repo: 'sap-center', hash: 'abc123', verified: null, repository_id: null, verified_at: null },
+    ]);
 
     const fetched = await fetch(`${base}/submissions/${submission.submission_id}`);
     assert.equal(fetched.status, 200);

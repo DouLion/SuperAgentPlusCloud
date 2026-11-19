@@ -36,7 +36,9 @@ function validatePayload(source, kind, payload) {
   const has = (key) => payload[key] !== undefined && payload[key] !== null && payload[key] !== '';
   if (source === 'git' && kind === 'commit') {
     if (!has('commit_sha')) throw codedError('FACT_PAYLOAD_INVALID', 'git/commit 事实必须包含 commit_sha', 400);
-    if (!has('ref')) throw codedError('FACT_PAYLOAD_INVALID', 'git/commit 事实必须包含 ref', 400);
+    if (!has('ref') && !has('branch')) {
+      throw codedError('FACT_PAYLOAD_INVALID', 'git/commit 事实必须包含 ref 或 branch', 400);
+    }
   }
   if (source === 'ci' && kind === 'build') {
     if (!has('status')) throw codedError('FACT_PAYLOAD_INVALID', 'ci/build 事实必须包含 status', 400);

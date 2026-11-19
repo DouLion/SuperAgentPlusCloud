@@ -6,13 +6,12 @@ import { printError } from '../format.mjs';
 
 export const meta = {
   name: 'repo',
-  usage: 'sap repo add --project <id> --name <名称> --url <git 地址> [--branch <默认分支>] [--provider github|gitlab|gitee|azure|other]\n'
+  usage: 'sap repo add --project <id> --name <名称> [--path <本地路径>] [--url <git 地址>] [--branch <默认分支>] [--provider github|gitlab|gitee|azure|other]\n'
     + '       sap repo list --project <id> [--status active|archived]\n'
-    + '       sap repo show --repo <repository_id>\n'
-    + '       sap repo archive --repo <repository_id> [--reason <理由>]\n'
-    + '       sap repo sync --repo <repository_id> --path <本地仓库路径> [--limit N] [--actor <主体>]\n'
-    + '       sap repo history --repo <repository_id> [--limit N]\n'
-    + '       sap repo commits --repo <repository_id> [--limit N]',
+    + '       sap repo show <repository_id>\n'
+    + '       sap repo archive <repository_id> [--reason <理由>]\n'
+    + '       sap repo sync <repository_id> [--path <本地路径>] [--limit N] [--since <时间>] [--actor <主体>]\n'
+    + '       sap repo commits <repository_id> [--limit N]',
 };
 
 function printRepository(out, repo) {
@@ -34,9 +33,16 @@ export async function run(argv, io = {}) {
 
   try {
     if (sub === 'add') {
+      const localPath = optionalFlag(flags, 'path');
+      const url = optionalFlag(flags, 'url');
+      if (!localPath && !url) {
+        err('至少提供 --url 或 --path');
+        return 1;
+      }
       const repo = await api.createRepository(requireFlag(flags, 'project'), {
         name: requireFlag(flags, 'name'),
-        url: requireFlag(flags, 'url'),
+        url: url ?? localPath,
+        local_path: localPath,
         default_branch: optionalFlag(flags, 'branch'),
         provider: optionalFlag(flags, 'provider'),
       }, options);
@@ -60,12 +66,14 @@ export async function run(argv, io = {}) {
     }
 
     if (sub === 'show') {
-      printRepository(out, await api.getRepository(requireFlag(flags, 'repo'), options));
+      const repositoryId = rest.find((one) => !one.startsWith('--')) || requireFlag(flags, 'repo');
+      printRepository(out, await api.getRepository(repositoryId, options));
       return 0;
     }
 
     if (sub === 'archive') {
-      const repo = await api.archiveRepository(requireFlag(flags, 'repo'), {
+      const repositoryId = rest.find((one) => !one.startsWith('--')) || requireFlag(flags, 'repo');
+      const repo = await api.archiveRepository(repositoryId, {
         reason: optionalFlag(flags, 'reason'),
       }, options);
       out(`仓库已归档：${repo.repository_id}  历史提交事实保留`);
@@ -73,21 +81,23 @@ export async function run(argv, io = {}) {
     }
 
     if (sub === 'sync') {
-      const result = await api.syncRepository(requireFlag(flags, 'repo'), {
-        local_path: requireFlag(flags, 'path', '<本地仓库路径>'),
+      const repositoryId = rest.find((one) => !one.startsWith('--')) || requireFlag(flags, 'repo');
+      const result = await api.syncRepository(repositoryId, {
+        local_path: optionalFlag(flags, 'path'),
         limit: optionalFlag(flags, 'limit'),
+        since: optionalFlag(flags, 'since'),
         actor_id: optionalFlag(flags, 'actor'),
       }, options);
-      out(`已同步：${result.repository?.name ?? result.toplevel}`);
-      out(`  分支：${result.branch}  HEAD：${String(result.head).slice(0, 12)}`);
-      out(`  提交：读取 ${result.commits_seen}，新增 ${result.commits_added}，已存在 ${result.commits_duplicated}`);
-      out(`  跟踪文件：${result.tracked_files}  目录摘要：${String(result.tree_digest).slice(0, 12)}`);
+      out(`已同步 ${result.repository_id}`);
+      out(`  分支 ${result.branch}  最新 ${String(result.latest_sha ?? '').slice(0, 12)}`);
+      out(`  新增 ${result.inserted}  已存在 ${result.skipped}  时间 ${result.synced_at}`);
       return 0;
     }
 
-    if (sub === 'history') {
+    if (sub === 'history' || sub === 'commits') {
+      const repositoryId = rest.find((one) => !one.startsWith('--')) || requireFlag(flags, 'repo');
       const result = await api.listRepositoryCommits(
-        requireFlag(flags, 'repo'),
+        repositoryId,
         { limit: optionalFlag(flags, 'limit') ?? 20 },
         options,
       );
@@ -97,26 +107,8 @@ export async function run(argv, io = {}) {
       }
       out(`${result.branch ?? '—'} @ ${String(result.head ?? '').slice(0, 12)}  同步于 ${result.synced_at ?? '—'}`);
       for (const commit of result.commits) {
-        out(`${String(commit.commit_sha).slice(0, 12)}  ${commit.committed_at ?? '—'}  `
-          + `${commit.author ?? '—'}  ${String(commit.summary ?? '').slice(0, 80)}`);
-      }
-      return 0;
-    }
-
-    if (sub === 'commits') {
-      const result = await api.listRepositoryFacts(
-        requireFlag(flags, 'repo'),
-        { source: 'git', kind: 'commit', limit: optionalFlag(flags, 'limit') ?? 20 },
-        options,
-      );
-      if (!result.facts.length) {
-        out('该仓库还没有提交事实');
-        return 0;
-      }
-      for (const fact of result.facts) {
-        const payload = fact.payload || {};
-        out(`${String(payload.commit_sha || fact.external_id).slice(0, 12)}  ${payload.ref || '—'}  `
-          + `${String(payload.message || payload.summary || '').slice(0, 80)}  ${fact.received_at}`);
+        out(`${String(commit.sha).slice(0, 12)}  ${commit.committed_at || '—'}  `
+          + `${commit.author_name || '—'}  ${String(commit.subject ?? '').slice(0, 80)}`);
       }
       return 0;
     }
