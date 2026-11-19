@@ -25,6 +25,10 @@ export function projectNavGroups(id) {
       ],
     },
     {
+      title: '契约',
+      items: [{ name: 'contracts', title: '契约与制品', icon: 'Files' }],
+    },
+    {
       title: '交付执行',
       items: [{ name: 'tasks', title: '任务工作台', icon: 'List' }],
     },

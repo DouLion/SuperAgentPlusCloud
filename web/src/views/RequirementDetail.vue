@@ -122,6 +122,7 @@ async function load() {
   } finally {
     loading.value = false;
   }
+  loadWorkflowOptions();
 }
 
 function applyAdvice(draft) {
@@ -256,6 +257,81 @@ async function adoptPlan() {
 
 function openTask(row) {
   go(router, 'task-detail', { id: projectId, taskId: row.task_id });
+}
+
+// ------------------------------------------------------------ 契约编排建议（T14）
+const orchestration = ref(null);
+const orchestrationLoading = ref(false);
+const orchestrationError = ref('');
+const orchestrationAdopting = ref(false);
+const orchestrationForm = reactive({ contract_name: '', created_by: '' });
+const workflowOptions = ref([]);
+
+const orchestrationChecks = computed(() => {
+  const checks = orchestration.value?.draft?.convention_checks
+    || orchestration.value?.validation?.violations
+    || [];
+  const groups = { must: [], should: [], preference: [] };
+  for (const check of checks) {
+    const severity = check.severity || 'must';
+    if (!groups[severity]) continue;
+    groups[severity].push(check);
+  }
+  return Object.entries(groups)
+    .filter(([, items]) => items.length > 0)
+    .map(([severity, items]) => ({ severity, items }));
+});
+
+const orchestrationAdoptable = computed(() => orchestration.value?.draft?.adoptable !== false);
+
+async function loadWorkflowOptions() {
+  try {
+    const rows = await api.listWorkflowTemplates({ project_id: projectId, status: 'active' });
+    workflowOptions.value = rows;
+  } catch {
+    workflowOptions.value = [];
+  }
+}
+
+async function generateOrchestration() {
+  orchestrationLoading.value = true;
+  orchestrationError.value = '';
+  try {
+    const result = await api.orchestrateRequirement(requirementId, {
+      workflow_template_id: orchestrationForm.workflow_template_id || undefined,
+    });
+    orchestration.value = result;
+    if (!orchestrationForm.contract_name) {
+      orchestrationForm.contract_name = `${requirement.value?.raw_text?.slice(0, 20) || '需求'} 契约`;
+    }
+    ElMessage.success('已生成契约编排建议（未生效）');
+  } catch (err) {
+    orchestrationError.value = errorMessage(err, '生成契约编排建议失败');
+  } finally {
+    orchestrationLoading.value = false;
+  }
+}
+
+async function adoptOrchestration() {
+  if (!orchestration.value) return;
+  if (!orchestrationAdoptable.value) {
+    ElMessage.warning('存在 must 违规或未决项，暂不能采纳');
+    return;
+  }
+  orchestrationAdopting.value = true;
+  try {
+    await api.adoptOrchestration(orchestration.value.suggestion.suggestion_id, {
+      created_by: orchestrationForm.created_by || '面板',
+      contract_name: orchestrationForm.contract_name || '接口契约',
+    });
+    ElMessage.success('已采纳：创建了契约草稿与任务');
+    orchestration.value = null;
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '采纳编排建议失败'));
+  } finally {
+    orchestrationAdopting.value = false;
+  }
 }
 
 watch(
@@ -461,6 +537,119 @@ onMounted(() => {
               <el-button type="primary" plain :loading="planAdopting" @click="adoptPlan">
                 采纳并创建任务
               </el-button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head">
+              <span class="panel__title">契约编排建议（未生效）</span>
+              <span>
+                <el-select
+                  v-model="orchestrationForm.workflow_template_id"
+                  placeholder="编排模板（默认 contract-first-api）"
+                  clearable
+                  size="small"
+                  style="width: 220px; margin-right: 8px"
+                >
+                  <el-option
+                    v-for="item in workflowOptions"
+                    :key="item.template_id"
+                    :label="item.name"
+                    :value="item.template_id"
+                  />
+                </el-select>
+                <el-button size="small" :loading="orchestrationLoading" @click="generateOrchestration">
+                  生成编排建议
+                </el-button>
+              </span>
+            </div>
+            <el-alert
+              v-if="orchestrationError"
+              type="error"
+              :closable="false"
+              show-icon
+              :title="orchestrationError"
+              style="margin-bottom: 10px"
+            />
+            <EmptyState v-if="!orchestration" description="尚未生成契约编排建议" :height="'80px'" />
+            <div v-else>
+              <div class="row">
+                <el-tag size="small" type="info">
+                  模板：{{ orchestration.draft.workflow_template_id || orchestration.draft.workflow_template?.name || '—' }}
+                </el-tag>
+                <el-tag v-if="!orchestrationAdoptable" size="small" type="danger">存在 must 违规，不可采纳</el-tag>
+                <el-tag v-else size="small" type="success">可采纳</el-tag>
+                <span class="muted mono">{{ orchestration.suggestion.suggestion_id }}</span>
+              </div>
+
+              <div v-if="orchestrationChecks.length" class="orchestration-checks">
+                <div v-for="group in orchestrationChecks" :key="group.severity" class="check-group">
+                  <el-tag
+                    size="small"
+                    :type="group.severity === 'must' ? 'danger' : (group.severity === 'should' ? 'warning' : 'info')"
+                  >
+                    {{ group.severity }}
+                  </el-tag>
+                  <ul>
+                    <li v-for="(check, index) in group.items" :key="index">
+                      {{ check.rule_key || check.key || '规则' }}：{{ check.reason || check.message }}
+                      <span v-if="check.result" class="muted">（{{ check.result }}）</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="muted">
+                契约接口：
+                <span class="mono">
+                  {{ Object.keys(orchestration.draft.api_contract_draft?.paths || {}).join('，') || '—' }}
+                </span>
+              </div>
+
+              <div v-for="(task, index) in orchestration.draft.tasks || []" :key="index" class="plan-item">
+                <div class="plan-item__head">
+                  <strong>{{ task.node_key }} · {{ task.purpose }}</strong>
+                  <el-tag size="small" effect="plain" type="info">
+                    依赖 {{ (task.depends_on_node_keys || []).join('，') || '无' }}
+                  </el-tag>
+                </div>
+                <div class="muted">
+                  服务 {{ (task.serves_item_ids || []).join('，') || '—' }}
+                  　产物 {{ (task.expected_outputs || []).join('，') || '—' }}
+                </div>
+                <ul class="done-list">
+                  <li v-for="(done, i) in task.done_when || []" :key="i">{{ done }}</li>
+                </ul>
+              </div>
+
+              <div v-if="(orchestration.draft.uncertainties || []).length" class="muted">
+                未决项：{{ orchestration.draft.uncertainties.join('；') }}
+              </div>
+
+              <el-form inline size="small" style="margin-top: 8px">
+                <el-form-item label="契约名称">
+                  <el-input v-model="orchestrationForm.contract_name" style="width: 220px" />
+                </el-form-item>
+                <el-form-item label="采纳人">
+                  <el-input v-model="orchestrationForm.created_by" placeholder="可选" style="width: 140px" />
+                </el-form-item>
+              </el-form>
+              <el-tooltip
+                :disabled="orchestrationAdoptable"
+                content="存在 must 违规或未决项，需先修复或补充信息"
+              >
+                <span>
+                  <el-button
+                    type="primary"
+                    plain
+                    :disabled="!orchestrationAdoptable"
+                    :loading="orchestrationAdopting"
+                    @click="adoptOrchestration"
+                  >
+                    采纳（创建契约草稿与任务）
+                  </el-button>
+                </span>
+              </el-tooltip>
             </div>
           </div>
         </el-col>

@@ -7,12 +7,20 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   activateConventionPack,
+  artifactReferences,
+  claimTask,
+  createAiSuggestion,
   createArtifact,
   createConventionPack,
   createProject,
+  createRequirement,
+  createSubmission,
+  createTask,
+  createTrunkItem,
   getArtifact,
   listArtifacts,
   openStore,
+  openTask,
   publishArtifact,
   retireArtifact,
 } from '../src/store.mjs';
@@ -109,6 +117,88 @@ test('文档与 Mock：同一契约生成 HTML 与示例响应', () => {
   assert.equal(mock.status, 200);
   assert.deepEqual(mock.body, { status: 1, message: 'ok', data: [{ orderId: 'O-1' }] });
   assert.equal(mock.operation_id, 'queryOrders');
+});
+
+test('引用关系：无引用返回空数组，有任务与提交时正确列出', async () => {
+  const project = seedProject();
+  const artifact = createArtifact(db, {
+    project_id: project.project_id, type: 'api_contract', name: `引用契约-${Date.now()}`,
+    content: GOOD, created_by: 'owner',
+  });
+
+  // 无引用：任务与提交都是空数组，路径仍然可用。
+  const empty = artifactReferences(db, artifact.artifact_id);
+  assert.deepEqual(empty.tasks, []);
+  assert.deepEqual(empty.submissions, []);
+  assert.equal(empty.document_path, `/sap-cloud/api/artifacts/${artifact.artifact_id}/document`);
+  assert.equal(empty.mock_path, `/sap-cloud/api/mock/${project.project_id}/orders/query`);
+
+  // 造一个引用该契约的任务与提交。
+  const item = createTrunkItem(db, {
+    project_id: project.project_id, kind: 'capability', statement: '引用测试能力', created_by: 'owner',
+  });
+  const requirement = createRequirement(db, {
+    project_id: project.project_id, author: 'owner', raw_text: '引用测试需求',
+  });
+  const task = createTask(db, {
+    project_id: project.project_id,
+    requirement_id: requirement.requirement_id,
+    serves_item_ids: [item.item_id],
+    purpose: '按契约实现',
+    done_when: ['按契约完成'],
+    created_by: 'owner',
+  });
+  openTask(db, task.task_id);
+  const claim = claimTask(db, task.task_id, 'worker-1');
+  createSubmission(db, {
+    task_id: task.task_id,
+    claim_id: claim.claim.claim_id,
+    commit_refs: [{ repo: 'demo', hash: 'abc123' }],
+    summary: '按契约实现',
+    submitted_by: 'worker-1',
+    artifacts: [artifact.artifact_id],
+  });
+  db.prepare(`SELECT 1`).get();
+
+  const filled = artifactReferences(db, artifact.artifact_id);
+  assert.equal(filled.submissions.length, 1);
+  assert.equal(filled.submissions[0].task_id, task.task_id);
+  assert.deepEqual(filled.tasks, []);
+
+  // 已采纳的编排建议会把任务挂到制品上。
+  createAiSuggestion(db, {
+    project_id: project.project_id,
+    requirement_id: requirement.requirement_id,
+    kind: 'contract_orchestration',
+    payload: { artifact_id: artifact.artifact_id, task_ids: [task.task_id] },
+  });
+  const withTask = artifactReferences(db, artifact.artifact_id);
+  assert.equal(withTask.tasks.length, 1);
+  assert.equal(withTask.tasks[0].task_id, task.task_id);
+  assert.equal(withTask.tasks[0].purpose, '按契约实现');
+});
+
+test('HTTP：引用关系接口返回 200，未知制品 404', async () => {
+  const project = seedProject();
+  const artifact = createArtifact(db, {
+    project_id: project.project_id, type: 'api_contract', name: `HTTP引用-${Date.now()}`,
+    content: GOOD, created_by: 'owner',
+  });
+  const server = createServer(db);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}/sap-cloud/api`;
+  try {
+    const ok = await fetch(`${base}/artifacts/${artifact.artifact_id}/references`);
+    assert.equal(ok.status, 200);
+    const body = await ok.json();
+    assert.equal(body.artifact_id, artifact.artifact_id);
+    assert.ok(Array.isArray(body.tasks));
+    assert.ok(Array.isArray(body.submissions));
+    assert.match(body.mock_path, /\/sap-cloud\/api\/mock\//);
+
+    const missing = await fetch(`${base}/artifacts/art_missing/references`);
+    assert.equal(missing.status, 404);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
 test('HTTP：must 违规阻断发布；发布后文档与 Mock 可用', async () => {

@@ -1,6 +1,7 @@
 // 项目制品 HTTP 路由（T13）：版本、发布、校验与同源文档。
 
 import {
+  artifactReferences,
   createArtifact,
   getArtifact,
   listArtifacts,
@@ -35,6 +36,10 @@ export const ROUTES = [
   {
     method: 'GET', pattern: '/artifacts/:id',
     handler: ({ db, params }) => requireArtifact(db, params.id),
+  },
+  {
+    method: 'GET', pattern: '/artifacts/:id/references',
+    handler: ({ db, params }) => artifactReferences(db, params.id),
   },
   {
     method: 'GET', pattern: '/artifacts/:id/validate',

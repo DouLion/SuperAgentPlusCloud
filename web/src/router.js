@@ -12,6 +12,7 @@ import Timeline from './views/Timeline.vue';
 import Setup from './views/Setup.vue';
 import Settings from './views/Settings.vue';
 import Agents from './views/Agents.vue';
+import Contracts from './views/Contracts.vue';
 
 // URL 契约见 docs/08 §3：页面统一在 /sap-cloud/* 下，项目内部嵌套在 /project/:id/*。
 const routes = [
@@ -35,6 +36,12 @@ const routes = [
     name: 'trunk',
     component: Trunk,
     meta: { title: '主干条目' },
+  },
+  {
+    path: '/project/:id/contracts',
+    name: 'contracts',
+    component: Contracts,
+    meta: { title: '契约与制品' },
   },
   {
     path: '/project/:id/requirements',

@@ -137,6 +137,68 @@ export function publishArtifact(db, artifactId, patch = {}) {
   return getArtifact(db, artifactId);
 }
 
+/**
+ * 制品引用关系：哪些任务/提交引用了它，以及文档与 Mock 的访问路径。
+ * 无引用时返回空数组，不报错。
+ */
+export function artifactReferences(db, artifactId) {
+  const artifact = getArtifact(db, artifactId);
+  if (!artifact) throw Object.assign(new Error(`制品不存在：${artifactId}`), { status: 404 });
+
+  // 1) 已采纳的契约编排建议会记录 artifact_id 与 task_ids。
+  const suggestions = db.prepare(`SELECT payload FROM ai_suggestions
+    WHERE project_id = ? AND kind = 'contract_orchestration'`).all(artifact.project_id);
+  const taskIds = new Set();
+  for (const row of suggestions) {
+    const payload = decodeJson(row.payload, {});
+    if (payload?.artifact_id === artifactId && Array.isArray(payload.task_ids)) {
+      payload.task_ids.forEach((id) => taskIds.add(id));
+    }
+  }
+  const tasks = taskIds.size === 0
+    ? []
+    : db.prepare('SELECT task_id, purpose, status FROM tasks WHERE task_id IN ('
+      + [...taskIds].map(() => '?').join(',') + ') ORDER BY created_at ASC').all(...taskIds);
+
+  // 2) 提交里的 artifacts 可能直接写制品 ID 或对象形式。
+  const candidates = db.prepare(`SELECT submission_id, task_id, submitted_by, submitted_at, artifacts
+    FROM submissions WHERE task_id IN (SELECT task_id FROM tasks WHERE project_id = ?)
+    ORDER BY submitted_at DESC`).all(artifact.project_id);
+  const submissions = candidates
+    .filter((row) => decodeJson(row.artifacts, []).some((item) => (
+      item === artifactId || (item && item.artifact_id === artifactId)
+    )))
+    .map((row) => ({
+      submission_id: row.submission_id,
+      task_id: row.task_id,
+      submitted_by: row.submitted_by,
+      submitted_at: row.submitted_at,
+    }));
+
+  // 3) 文档与 Mock 路径；Mock 取第一个带 2xx 响应的 operation 作为示例。
+  const paths = artifact.content?.paths || {};
+  let mockPath = null;
+  for (const [pathname, pathItem] of Object.entries(paths)) {
+    for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+      const operation = pathItem?.[method];
+      if (!operation) continue;
+      if (Object.keys(operation.responses || {}).some((status) => /^2\d\d$/.test(status))) {
+        mockPath = `/sap-cloud/api/mock/${artifact.project_id}${pathname}`;
+        break;
+      }
+    }
+    if (mockPath) break;
+  }
+
+  return {
+    artifact_id: artifactId,
+    tasks,
+    submissions,
+    mock_path: mockPath,
+    document_path: `/sap-cloud/api/artifacts/${artifactId}/document`,
+  };
+}
+
 export function retireArtifact(db, artifactId, patch = {}) {
   const artifact = getArtifact(db, artifactId);
   if (!artifact) throw Object.assign(new Error(`制品不存在：${artifactId}`), { status: 404 });

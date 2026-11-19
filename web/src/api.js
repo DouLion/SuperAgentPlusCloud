@@ -212,6 +212,7 @@ export const api = {
   retireArtifact: (id, input) =>
     request('POST', `/artifacts/${encodeURIComponent(id)}/retire`, input),
   artifactDocumentUrl: (id) => `${BASE}${API_PREFIX}/artifacts/${encodeURIComponent(id)}/document`,
+  artifactReferences: (id) => request('GET', `/artifacts/${encodeURIComponent(id)}/references`),
 
   // 契约优先编排（T14）
   orchestrateRequirement: (id, input = {}) =>
