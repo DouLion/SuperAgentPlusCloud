@@ -27,6 +27,9 @@ import { run as runDelegate } from '../src/commands/delegate.mjs';
 import { run as runMember } from '../src/commands/member.mjs';
 import { run as runCommand } from '../src/commands/command.mjs';
 import { run as runOutbox } from '../src/commands/outbox.mjs';
+import { run as runAgent } from '../src/commands/agent.mjs';
+import { run as runCaps } from '../src/commands/caps.mjs';
+import { run as runCandidates } from '../src/commands/candidates.mjs';
 
 /** 提取全局 --token：写入 SAP_TOKEN 后从参数里移除，避免各命令重复处理。 */
 function extractToken(argv) {
@@ -77,6 +80,9 @@ const handlers = new Map([
   ['member', runMember],
   ['command', runCommand],
   ['outbox', runOutbox],
+  ['agent', runAgent],
+  ['caps', runCaps],
+  ['candidates', runCandidates],
 ]);
 
 function main(argv) {

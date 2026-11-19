@@ -17,6 +17,7 @@ export const DEFAULT_DB_PATH = path.join(PACKAGE_ROOT, 'data', 'center.db');
 const TABLES = [
   'outbox',
   'command_ledger',
+  'actor_capabilities',
   'project_members',
   'delegations',
   'actor_credentials',

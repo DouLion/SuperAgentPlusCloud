@@ -372,4 +372,24 @@ export const api = {
   listOutbox: (query, options) =>
     apiRequest('GET', `/outbox${queryString(query)}`, undefined, options),
   dispatchOutbox: (input = {}, options) => apiRequest('POST', '/outbox/dispatch', input, options),
+
+  // 能力（P4）：只影响推荐，不产生授权。
+  listCapabilities: (actorId, options) =>
+    apiRequest('GET', `/actors/${encodeURIComponent(actorId)}/capabilities`, undefined, options),
+  setCapability: (actorId, input, options) =>
+    apiRequest('POST', `/actors/${encodeURIComponent(actorId)}/capabilities`, input, options),
+
+  // 任务上下文与候选（P4）
+  getTaskContext: (taskId, options) =>
+    apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/context`, undefined, options),
+  listTaskCandidates: (taskId, options) =>
+    apiRequest('GET', `/tasks/${encodeURIComponent(taskId)}/candidates`, undefined, options),
+
+  // Agent 接入（P4）：拉取为主，claim/heartbeat/deliver/release。
+  agentInbox: (query, options) =>
+    apiRequest('GET', `/agent/inbox${queryString(query)}`, undefined, options),
+  agentClaim: (input, options) => apiRequest('POST', '/agent/claim', input, options),
+  agentHeartbeat: (input, options) => apiRequest('POST', '/agent/heartbeat', input, options),
+  agentDeliver: (input, options) => apiRequest('POST', '/agent/deliver', input, options),
+  agentRelease: (input, options) => apiRequest('POST', '/agent/release', input, options),
 };

@@ -470,3 +470,16 @@ CREATE TABLE IF NOT EXISTS outbox (
 CREATE INDEX IF NOT EXISTS idx_outbox_available ON outbox (available_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_delivered ON outbox (delivered_at);
 
+-- Agent 能力（P4）------------------------------------------------------------
+-- 能力只用于推荐匹配，不构成授权；授权仍由 delegations 与 policy 判定。
+CREATE TABLE IF NOT EXISTS actor_capabilities (
+  actor_id   TEXT NOT NULL REFERENCES actors (actor_id),
+  key        TEXT NOT NULL,
+  level      TEXT NOT NULL CHECK (level IN ('basic', 'standard', 'expert')),
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (actor_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_capabilities_key ON actor_capabilities (key);
+
+

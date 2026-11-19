@@ -31,6 +31,9 @@ export const IMPLEMENTED_COMMANDS = [
   'member',
   'command',
   'outbox',
+  'agent',
+  'caps',
+  'candidates',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -185,6 +188,24 @@ export const PLANNED_COMMANDS = [
     desc: 'P3 事件投递箱：查看待投递事件并派发',
     implemented: true,
   },
+  {
+    name: 'agent',
+    usage: 'sap agent inbox|claim|heartbeat|deliver|release ...（需 agent 凭据）',
+    desc: 'P4 Agent 接入：拉取可认领任务、认领、续租、交付、释放',
+    implemented: true,
+  },
+  {
+    name: 'caps',
+    usage: 'sap caps set --actor <id> --key <能力> [--level basic|standard|expert] ｜ sap caps list --actor <id>',
+    desc: 'P4 主体能力：只用于候选人推荐，不产生授权',
+    implemented: true,
+  },
+  {
+    name: 'candidates',
+    usage: 'sap candidates --task <task_id>',
+    desc: 'P4 候选主体推荐：按编排节点的 role_hint 匹配能力',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -203,6 +224,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：P3 协议层 —— 命令账本（幂等）、协议版本、未知结果查询与 outbox 投递。',
+    '当前进度：P4 上下文层与 Agent 接入 —— 任务上下文快照、候选人推荐、inbox/claim/heartbeat/deliver/release。',
   ].join('\n');
 }

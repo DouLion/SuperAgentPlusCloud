@@ -20,6 +20,9 @@ import { ROUTES as ARTIFACT_ROUTES } from './routes/artifacts.mjs';
 import { ROUTES as ACTOR_ROUTES } from './routes/actors.mjs';
 import { ROUTES as MOCK_ROUTES } from './routes/mock.mjs';
 import { ROUTES as PROTOCOL_ROUTES } from './routes/protocol.mjs';
+import { ROUTES as AGENT_ROUTES } from './routes/agent.mjs';
+import { ROUTES as CONTEXT_ROUTES } from './routes/context.mjs';
+import { ROUTES as CAPABILITY_ROUTES } from './routes/capabilities.mjs';
 import {
   CURRENT_PROTOCOL_VERSION,
   PROTOCOL_VERSION_HEADER,
@@ -109,6 +112,9 @@ export const ROUTES = [
   ...ACTOR_ROUTES,
   ...MOCK_ROUTES,
   ...PROTOCOL_ROUTES,
+  ...AGENT_ROUTES,
+  ...CONTEXT_ROUTES,
+  ...CAPABILITY_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */
@@ -523,6 +529,7 @@ export function createServer(db, options = {}) {
         ok: false,
         error: message,
         ...(err && typeof err.code === 'string' ? { code: err.code } : {}),
+        ...(err && err.details && typeof err.details === 'object' ? err.details : {}),
       });
     }
   });
