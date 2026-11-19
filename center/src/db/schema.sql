@@ -490,3 +490,36 @@ CREATE TABLE IF NOT EXISTS actor_capabilities (
 CREATE INDEX IF NOT EXISTS idx_capabilities_key ON actor_capabilities (key);
 
 
+
+-- 材料与提取（C 枝）----------------------------------------------------------
+-- 材料保留原文，不用摘要替代；提取结果一律 draft，人采纳后才生成正式对象。
+CREATE TABLE IF NOT EXISTS materials (
+  material_id TEXT PRIMARY KEY,
+  project_id  TEXT NOT NULL REFERENCES projects (project_id),
+  title       TEXT NOT NULL,
+  kind        TEXT NOT NULL CHECK (kind IN ('meeting', 'design', 'chat', 'doc', 'other')),
+  content     TEXT NOT NULL,
+  source_ref  TEXT,
+  created_by  TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_materials_project ON materials (project_id);
+CREATE INDEX IF NOT EXISTS idx_materials_kind ON materials (kind);
+
+CREATE TABLE IF NOT EXISTS material_extractions (
+  extraction_id TEXT PRIMARY KEY,
+  material_id   TEXT NOT NULL REFERENCES materials (material_id),
+  kind          TEXT NOT NULL CHECK (kind IN ('requirement', 'convention', 'decision')),
+  payload       TEXT NOT NULL,
+  raw_response  TEXT,
+  model         TEXT,
+  status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'accepted', 'rejected')),
+  accepted_ref  TEXT,
+  created_by    TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  accepted_at   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_extractions_material ON material_extractions (material_id);
+CREATE INDEX IF NOT EXISTS idx_extractions_kind_status ON material_extractions (kind, status);

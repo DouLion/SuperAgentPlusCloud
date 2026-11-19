@@ -25,6 +25,7 @@ import { ROUTES as AGENT_ROUTES } from './routes/agent.mjs';
 import { ROUTES as CONTEXT_ROUTES } from './routes/context.mjs';
 import { ROUTES as CAPABILITY_ROUTES } from './routes/capabilities.mjs';
 import { ROUTES as OBSERVABILITY_ROUTES } from './routes/observability.mjs';
+import { ROUTES as MATERIAL_ROUTES } from './routes/materials.mjs';
 import {
   CURRENT_PROTOCOL_VERSION,
   PROTOCOL_VERSION_HEADER,
@@ -120,6 +121,7 @@ export const ROUTES = [
   ...CONTEXT_ROUTES,
   ...CAPABILITY_ROUTES,
   ...OBSERVABILITY_ROUTES,
+  ...MATERIAL_ROUTES,
 ];
 
 /** 面板与接口的统一前缀（见 docs/08 §1）。 */

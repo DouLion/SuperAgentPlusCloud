@@ -4,6 +4,7 @@ import ProjectList from './views/ProjectList.vue';
 import Dashboard from './views/Dashboard.vue';
 import Trunk from './views/Trunk.vue';
 import Requirements from './views/Requirements.vue';
+import Materials from './views/Materials.vue';
 import RequirementDetail from './views/RequirementDetail.vue';
 import Tasks from './views/Tasks.vue';
 import TaskDetail from './views/TaskDetail.vue';
@@ -48,6 +49,12 @@ const routes = [
     name: 'requirements',
     component: Requirements,
     meta: { title: '需求队列' },
+  },
+  {
+    path: '/project/:id/materials',
+    name: 'materials',
+    component: Materials,
+    meta: { title: '材料与提取' },
   },
   {
     path: '/project/:id/requirements/:requirementId',

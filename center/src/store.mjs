@@ -22,3 +22,4 @@ export * from './db/impacts.mjs';
 export * from './db/actors.mjs';
 export * from './db/capabilities.mjs';
 export * from './db/dependencies.mjs';
+export * from './db/materials.mjs';

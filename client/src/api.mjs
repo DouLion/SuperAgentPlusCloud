@@ -400,4 +400,19 @@ export const api = {
   agentHeartbeat: (input, options) => apiRequest('POST', '/agent/heartbeat', input, options),
   agentDeliver: (input, options) => apiRequest('POST', '/agent/deliver', input, options),
   agentRelease: (input, options) => apiRequest('POST', '/agent/release', input, options),
+
+  // 材料与提取（C 枝）
+  createMaterial: (input, options) => apiRequest('POST', '/materials', input, options),
+  listMaterials: (query, options) =>
+    apiRequest('GET', `/materials${queryString(query)}`, undefined, options),
+  getMaterial: (materialId, options) =>
+    apiRequest('GET', `/materials/${encodeURIComponent(materialId)}`, undefined, options),
+  extractMaterial: (materialId, input = {}, options) =>
+    apiRequest('POST', `/materials/${encodeURIComponent(materialId)}/extract`, input, options),
+  listExtractions: (query, options) =>
+    apiRequest('GET', `/material-extractions${queryString(query)}`, undefined, options),
+  acceptExtraction: (extractionId, input, options) =>
+    apiRequest('POST', `/material-extractions/${encodeURIComponent(extractionId)}/accept`, input, options),
+  rejectExtraction: (extractionId, input, options) =>
+    apiRequest('POST', `/material-extractions/${encodeURIComponent(extractionId)}/reject`, input, options),
 };

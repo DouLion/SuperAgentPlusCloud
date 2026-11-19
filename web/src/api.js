@@ -181,6 +181,18 @@ export const api = {
     request('POST', `/trunk-changes/${encodeURIComponent(id)}/advice`, {}),
   listAiSuggestions: (query) => request('GET', `/ai/suggestions${queryString(query)}`),
 
+  // 材料与提取（C 枝）
+  listMaterials: (query) => request('GET', `/materials${queryString(query)}`),
+  createMaterial: (input) => request('POST', '/materials', input),
+  getMaterial: (id) => request('GET', `/materials/${encodeURIComponent(id)}`),
+  extractMaterial: (id, input = {}) =>
+    request('POST', `/materials/${encodeURIComponent(id)}/extract`, input),
+  listExtractions: (query) => request('GET', `/material-extractions${queryString(query)}`),
+  acceptExtraction: (id, input) =>
+    request('POST', `/material-extractions/${encodeURIComponent(id)}/accept`, input),
+  rejectExtraction: (id, input) =>
+    request('POST', `/material-extractions/${encodeURIComponent(id)}/reject`, input),
+
   // 约定包（T12）
   listConventionPacks: (query) => request('GET', `/convention-packs${queryString(query)}`),
   createConventionPack: (input) => request('POST', '/convention-packs', input),

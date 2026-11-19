@@ -34,6 +34,8 @@ export const IMPLEMENTED_COMMANDS = [
   'agent',
   'caps',
   'candidates',
+  'observe',
+  'material',
 ];
 
 /** 已规划命令清单，顺序即帮助展示顺序。 */
@@ -212,6 +214,12 @@ export const PLANNED_COMMANDS = [
     desc: 'P5 观测：主体在线状态、卡住任务、流水线指标',
     implemented: true,
   },
+  {
+    name: 'material',
+    usage: 'sap material add|list|show|extract|accept|reject ...',
+    desc: '材料导入与 AI 提取：只产生草稿，采纳后才生成需求或约定',
+    implemented: true,
+  },
 ];
 
 export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
@@ -230,6 +238,6 @@ export function buildHelp(centerUrl = DEFAULT_CENTER_URL) {
     '可用命令：',
     ...lines,
     '',
-    '当前进度：P4 上下文层与 Agent 接入 —— 任务上下文快照、候选人推荐、inbox/claim/heartbeat/deliver/release。',
+    '当前进度：C 枝材料接入 —— 材料原文、AI 提取需求/约定/决定草稿、人工采纳。',
   ].join('\n');
 }
