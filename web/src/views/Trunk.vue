@@ -118,10 +118,10 @@ const tree = computed(() => {
 
   function measure(node) {
     const children = visibleChildren(node);
-    if (children.length === 0) return { width: NODE_W, children };
+    if (children.length === 0) return { node, width: NODE_W, children: [] };
     const measured = children.map((child) => measure(child));
     const width = measured.reduce((sum, one) => sum + one.width, 0) + GAP_X * (children.length - 1);
-    return { width, children: measured };
+    return { node, width, children: measured };
   }
 
   function place(node, measured, left, depth) {
