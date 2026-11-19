@@ -29,6 +29,10 @@ export const DEFAULT_CONFIG = Object.freeze({
     model: 'deepseek-chat',
     timeout_ms: 30000,
   }),
+  security: Object.freeze({
+    auth_mode: 'optional',
+    role_enforcement: 'off',
+  }),
 });
 
 /** 前端构建产物默认目录：center/../web/dist。 */
@@ -151,6 +155,15 @@ export function resolveConfig(env = process.env) {
     timeout_ms: normalizeTimeout(env.SAP_LLM_TIMEOUT_MS || merged.llm.timeout_ms),
   };
   const webDist = env.SAP_WEB_DIST || DEFAULT_WEB_DIST;
+  const security = {
+    auth_mode: normalizeAuthMode(
+      env.SAP_AUTH_MODE || merged.security?.auth_mode || DEFAULT_CONFIG.security.auth_mode,
+    ),
+    role_enforcement: normalizeRoleEnforcement(
+      env.SAP_ROLE_ENFORCEMENT || merged.security?.role_enforcement
+        || DEFAULT_CONFIG.security.role_enforcement,
+    ),
+  };
 
   return {
     version: Number.isInteger(merged.version) ? merged.version : DEFAULT_CONFIG.version,
@@ -159,6 +172,7 @@ export function resolveConfig(env = process.env) {
     host,
     db: { type: dbType, path: dbPath },
     llm,
+    security,
     web_dist: path.resolve(webDist),
     config_path: file.path,
     config_exists: file.exists,
@@ -179,9 +193,27 @@ export function aiConfigured(env = process.env) {
 /** 授权模式：optional（默认，无 token 走 legacy）/ required（写操作必须带 token）。 */
 export const AUTH_MODES = ['optional', 'required'];
 
-export function authMode(env = process.env) {
-  const raw = String(env.SAP_AUTH_MODE || 'optional').toLowerCase();
+/** 角色强制：off（默认，仅记录）/ on（要求项目角色匹配动作）。 */
+export const ROLE_ENFORCEMENT_MODES = ['off', 'on'];
+
+function normalizeAuthMode(value) {
+  const raw = String(value || 'optional').toLowerCase();
   return AUTH_MODES.includes(raw) ? raw : 'optional';
+}
+
+function normalizeRoleEnforcement(value) {
+  const raw = String(value || 'off').toLowerCase();
+  return ROLE_ENFORCEMENT_MODES.includes(raw) ? raw : 'off';
+}
+
+/** 读取认证模式：环境变量 > 配置文件 > 默认 optional。 */
+export function authMode(env = process.env) {
+  return resolveConfig(env).security.auth_mode;
+}
+
+/** 读取角色强制开关：环境变量 > 配置文件 > 默认 off。 */
+export function roleEnforcement(env = process.env) {
+  return resolveConfig(env).security.role_enforcement;
 }
 
 // ── 兼容现有引用的快照（模块加载时求值）──────────────────────────────
@@ -212,5 +244,8 @@ export const config = {
   config_path: resolved.config_path,
   get llm() {
     return llmConfig();
+  },
+  get security() {
+    return resolveConfig().security;
   },
 };

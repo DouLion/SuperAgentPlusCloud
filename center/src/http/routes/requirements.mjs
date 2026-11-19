@@ -11,7 +11,7 @@ import {
   listRequirements,
 } from '../../db/requirements.mjs';
 import { createTask, openTask } from '../../db/tasks.mjs';
-import { assertCan, stampActorType } from '../../auth/policy.mjs';
+import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
 export const ROUTES = [
   {
@@ -75,6 +75,7 @@ export const ROUTES = [
         return { status: 404, body: { ok: false, error: `需求不存在：${params.id}` } };
       }
       const auth = assertCan(db, req, 'decision.confirm', { project_id: requirement.project_id });
+      assertProjectRole(db, auth, 'decision.confirm', { project_id: requirement.project_id });
       const payload = { ...body, requirement_id: params.id };
       if (!payload.confirmed_by && !payload.confirmedBy && auth.actor) {
         payload.confirmed_by = auth.actor.display_name;

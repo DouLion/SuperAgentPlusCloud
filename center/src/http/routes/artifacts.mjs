@@ -10,7 +10,7 @@ import {
 } from '../../db/artifacts.mjs';
 import { activeConventionRules, renderOpenApiHtml, validateOpenApi } from '../../contracts/openapi.mjs';
 import { addImpact, countPendingImpacts, listImpacts } from '../../db/impacts.mjs';
-import { assertCan, stampActorType } from '../../auth/policy.mjs';
+import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
 function requireArtifact(db, id) {
   const artifact = getArtifact(db, id);
@@ -56,6 +56,7 @@ export const ROUTES = [
       const artifact = getArtifact(db, params.id);
       if (!artifact) return { status: 404, body: { error: `制品不存在：${params.id}` } };
       const auth = assertCan(db, req, 'artifact.publish', { project_id: artifact.project_id });
+      assertProjectRole(db, auth, 'artifact.publish', { project_id: artifact.project_id });
       const validation = validateContract(db, artifact);
       if (!validation.valid) {
         return {

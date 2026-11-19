@@ -7,7 +7,7 @@ import {
   listTrunkItems,
   retireTrunkItem,
 } from '../../db/trunk.mjs';
-import { assertCan, stampActorType } from '../../auth/policy.mjs';
+import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
 export const ROUTES = [
   {
@@ -47,6 +47,7 @@ export const ROUTES = [
         return { status: 404, body: { ok: false, error: `主干条目不存在：${params.id}` } };
       }
       const auth = assertCan(db, req, 'trunk_item.confirm', { project_id: item.project_id });
+      assertProjectRole(db, auth, 'trunk_item.confirm', { project_id: item.project_id });
       const payload = { ...body };
       if (!payload.confirmed_by && !payload.confirmedBy && auth.actor) {
         payload.confirmed_by = auth.actor.display_name;
@@ -65,6 +66,7 @@ export const ROUTES = [
         return { status: 404, body: { ok: false, error: `主干条目不存在：${params.id}` } };
       }
       const auth = assertCan(db, req, 'trunk_item.retire', { project_id: item.project_id });
+      assertProjectRole(db, auth, 'trunk_item.retire', { project_id: item.project_id });
       return {
         status: 200,
         body: { ...retireTrunkItem(db, params.id, body), retired_actor_type: auth.actor_type },

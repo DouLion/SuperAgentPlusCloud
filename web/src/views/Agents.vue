@@ -30,6 +30,24 @@ const issuedToken = ref('');
 const issuedActor = ref('');
 const credentialForm = reactive({ actor_id: '', label: '' });
 
+const credentialListVisible = ref(false);
+const credentialListLoading = ref(false);
+const credentialList = ref([]);
+const credentialListActor = ref(null);
+
+const roleVisible = ref(false);
+const roleSaving = ref(false);
+const projects = ref([]);
+const roleForm = reactive({ actor_id: '', actor_name: '', project_id: '', roles: [] });
+const PROJECT_ROLE_OPTIONS = [
+  { value: 'owner', label: 'owner（项目负责人）' },
+  { value: 'direction', label: 'direction（方向裁决）' },
+  { value: 'reviewer', label: 'reviewer（评审）' },
+  { value: 'publisher', label: 'publisher（发布契约）' },
+  { value: 'contributor', label: 'contributor（执行）' },
+  { value: 'observer', label: 'observer（只读）' },
+];
+
 const capabilityVisible = ref(false);
 const capabilitySaving = ref(false);
 const capabilityForm = reactive({ actor_id: '', actor_name: '', key: '', level: 'standard' });
@@ -153,11 +171,100 @@ function closeCredential() {
 
 async function disableActor(row) {
   try {
-    await api.disableActor(row.actor_id, { actor: row.actor_id, reason: '面板停用' });
-    ElMessage.success(`已停用：${row.actor_id}`);
+    const result = await api.disableActor(row.actor_id, { actor: row.actor_id, reason: '面板停用' });
+    const released = result?.released_claims ?? 0;
+    ElMessage.success(released > 0
+      ? `已停用：${row.actor_id}，同时释放 ${released} 个认领`
+      : `已停用：${row.actor_id}`);
     await load();
   } catch (err) {
     ElMessage.error(errorMessage(err, '停用主体失败'));
+  }
+}
+
+async function enableActor(row) {
+  try {
+    await api.enableActor(row.actor_id, { actor: row.actor_id, reason: '面板启用' });
+    ElMessage.success(`已启用：${row.actor_id}`);
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '启用主体失败'));
+  }
+}
+
+async function toggleAdmin(row) {
+  try {
+    if (row.is_admin) await api.demoteActor(row.actor_id, { actor: row.actor_id, reason: '面板取消管理员' });
+    else await api.promoteActor(row.actor_id, { actor: row.actor_id, reason: '面板设为管理员' });
+    ElMessage.success(row.is_admin ? '已取消管理员' : '已设为管理员');
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '修改管理员失败'));
+  }
+}
+
+async function openCredentials(row) {
+  credentialListActor.value = row;
+  credentialList.value = [];
+  credentialListVisible.value = true;
+  credentialListLoading.value = true;
+  try {
+    credentialList.value = await api.listCredentials(row.actor_id);
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '加载凭据失败'));
+  } finally {
+    credentialListLoading.value = false;
+  }
+}
+
+async function revokeCredentialRow(item) {
+  try {
+    await api.revokeCredential(item.credential_id, { actor: item.actor_id, reason: '面板撤销凭据' });
+    ElMessage.success('凭据已撤销');
+    await openCredentials(credentialListActor.value);
+    await load();
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '撤销凭据失败'));
+  }
+}
+
+async function openRoles(row) {
+  roleForm.actor_id = row.actor_id;
+  roleForm.actor_name = row.display_name;
+  roleForm.project_id = '';
+  roleForm.roles = [];
+  roleVisible.value = true;
+  if (projects.value.length === 0) {
+    try {
+      projects.value = await api.listProjects();
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '加载项目失败'));
+    }
+  }
+}
+
+async function saveRoles() {
+  if (!roleForm.project_id) {
+    ElMessage.warning('请选择项目');
+    return;
+  }
+  if (roleForm.roles.length === 0) {
+    ElMessage.warning('请至少选择一个角色');
+    return;
+  }
+  roleSaving.value = true;
+  try {
+    await api.addMember(roleForm.project_id, {
+      actor_id: roleForm.actor_id,
+      roles: roleForm.roles,
+      created_by: 'panel',
+    });
+    ElMessage.success('项目角色已保存；角色强制开启后才会参与判定');
+    roleVisible.value = false;
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '保存项目角色失败'));
+  } finally {
+    roleSaving.value = false;
   }
 }
 
@@ -273,7 +380,14 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="display_name" label="显示名" min-width="140" show-overflow-tooltip />
+        <el-table-column label="显示名" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span>{{ row.display_name }}</span>
+            <el-tag v-if="row.is_admin" size="small" type="warning" effect="plain" style="margin-left: 6px">
+              管理员
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="row.status === 'active' ? 'success' : 'info'" effect="plain">
@@ -308,11 +422,23 @@ onMounted(() => {
             <span class="muted">{{ row.last_used_at ? formatTime(row.last_used_at) : '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <el-button size="small" text type="primary" @click="openCredential(row)">签发凭据</el-button>
+            <el-button size="small" text @click="openCredentials(row)">凭据</el-button>
             <el-button size="small" text @click="openCapability(row)">能力</el-button>
-            <el-button size="small" text type="danger" @click="disableActor(row)">停用</el-button>
+            <el-button size="small" text @click="openRoles(row)">项目角色</el-button>
+            <el-button size="small" text @click="toggleAdmin(row)">{{ row.is_admin ? '取消管理员' : '设为管理员' }}</el-button>
+            <el-button
+              v-if="row.status === 'active'"
+              size="small"
+              text
+              type="danger"
+              @click="disableActor(row)"
+            >
+              停用
+            </el-button>
+            <el-button v-else size="small" text type="success" @click="enableActor(row)">启用</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -484,6 +610,81 @@ onMounted(() => {
       <template #footer>
         <el-button @click="capabilityVisible = false">取消</el-button>
         <el-button type="primary" :loading="capabilitySaving" @click="saveCapability">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="credentialListVisible"
+      :title="`凭据：${credentialListActor?.display_name || ''}`"
+      width="640px"
+    >
+      <div v-loading="credentialListLoading">
+        <EmptyState v-if="!credentialListLoading && credentialList.length === 0" description="还没有凭据" :height="'120px'" />
+        <el-table v-else :data="credentialList" size="small">
+          <el-table-column prop="credential_id" label="编号" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="label" label="标签" min-width="120">
+            <template #default="{ row }">{{ row.label || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.revoked_at ? 'info' : 'success'" effect="plain">
+                {{ row.revoked_at ? '已撤销' : '有效' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="最近使用" width="160">
+            <template #default="{ row }">{{ row.last_used_at ? formatTime(row.last_used_at) : '—' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                size="small"
+                text
+                type="danger"
+                :disabled="Boolean(row.revoked_at)"
+                @click="revokeCredentialRow(row)"
+              >
+                撤销
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #footer>
+        <el-button @click="credentialListVisible = false">关闭</el-button>
+        <el-button type="primary" plain @click="openCredential(credentialListActor)">签发新凭据</el-button>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="roleVisible" :title="`项目角色：${roleForm.actor_name}`" width="520px">
+      <el-form label-width="90px">
+        <el-form-item label="项目">
+          <el-select v-model="roleForm.project_id" filterable placeholder="选择项目" style="width: 100%">
+            <el-option
+              v-for="project in projects"
+              :key="project.project_id"
+              :label="`${project.name}（${project.project_id}）`"
+              :value="project.project_id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-checkbox-group v-model="roleForm.roles">
+            <el-checkbox v-for="item in PROJECT_ROLE_OPTIONS" :key="item.value" :value="item.value">
+              {{ item.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+      </el-form>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="角色只在「强制项目角色」开启后参与判定"
+        description="owner 覆盖全部动作；direction 管方向与主干；reviewer 管评审；publisher 管契约发布。"
+      />
+      <template #footer>
+        <el-button @click="roleVisible = false">取消</el-button>
+        <el-button type="primary" :loading="roleSaving" @click="saveRoles">保存</el-button>
       </template>
     </el-dialog>
   </div>

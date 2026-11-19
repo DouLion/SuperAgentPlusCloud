@@ -256,6 +256,7 @@ export function migrate(db = openStore()) {
   ensureClaimLeaseColumns(db);
   ensureImpactSourceColumns(db);
   ensureColumn(db, 'command_ledger', 'replay_count', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'actors', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
   return db;
 }
 

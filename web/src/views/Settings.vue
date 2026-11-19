@@ -20,6 +20,8 @@ const form = reactive({
   llm_api_key: '',
   llm_model: 'deepseek-chat',
   llm_timeout_ms: 30000,
+  auth_mode: 'optional',
+  role_enforcement: 'off',
 });
 
 const rules = {
@@ -44,6 +46,8 @@ async function load() {
     form.db_type = current.db_type;
     form.llm_base_url = current.llm.base_url || '';
     form.llm_model = current.llm.model || 'deepseek-chat';
+    form.auth_mode = current.security?.auth_mode || 'optional';
+    form.role_enforcement = current.security?.role_enforcement || 'off';
     // db_path 回显为当前生效路径，便于查看。
     form.db_path = current.db_path;
   } catch (err) {
@@ -71,6 +75,10 @@ async function submit() {
         base_url: form.llm_base_url,
         model: form.llm_model,
         timeout_ms: form.llm_timeout_ms,
+      },
+      security: {
+        auth_mode: form.auth_mode,
+        role_enforcement: form.role_enforcement,
       },
     };
     // 密钥留空表示不修改，避免误清空已保存的密钥。
@@ -168,6 +176,28 @@ const restartHint = () => {
         </el-form-item>
         <el-form-item label="超时（毫秒）" prop="llm_timeout_ms">
           <el-input-number v-model="form.llm_timeout_ms" :min="1" :step="1000" />
+        </el-form-item>
+
+        <el-divider content-position="left">安全</el-divider>
+        <el-alert
+          type="warning"
+          :closable="false"
+          show-icon
+          title="认证与角色开关会影响所有写操作"
+          description="切到「必须带凭据」后，除引导期外所有写操作都需要 Authorization: Bearer <token>；切到「强制项目角色」后，决定、评审、主干、契约发布等动作还要求发起人具备对应项目角色。"
+          class="settings-alert"
+        />
+        <el-form-item label="认证模式">
+          <el-radio-group v-model="form.auth_mode">
+            <el-radio value="optional">可选（保留无凭据调用）</el-radio>
+            <el-radio value="required">必须带凭据</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="项目角色">
+          <el-radio-group v-model="form.role_enforcement">
+            <el-radio value="off">不强制</el-radio>
+            <el-radio value="on">强制</el-radio>
+          </el-radio-group>
         </el-form-item>
 
         <el-form-item>

@@ -4,6 +4,7 @@
 import crypto from 'node:crypto';
 import { appendDefinitionEvent } from './definition-events.mjs';
 import { appendEvent } from './events.mjs';
+import { releaseClaim } from './claims.mjs';
 import { assertProjectExists } from './projects.mjs';
 import {
   codedError,
@@ -80,6 +81,13 @@ export function createActor(db, input = {}) {
   const actorId = pick(input, 'actor_id', 'actorId') ?? newId('act');
   const createdBy = pick(input, 'created_by', 'createdBy');
   const now = nowIso();
+  // 管理员判定：显式指定，或系统里还没有任何主体时首个主体自动成为管理员。
+  const explicitAdmin = pick(input, 'is_admin', 'isAdmin');
+  const envAdmin = process.env.SAP_ADMIN_ACTOR_ID;
+  const isAdmin = explicitAdmin !== undefined
+    ? (explicitAdmin ? 1 : 0)
+    : ((envAdmin && envAdmin === actorId)
+      || Number(db.prepare('SELECT COUNT(*) AS n FROM actors').get().n) === 0 ? 1 : 0);
 
   if (type === 'agent') {
     const ownerId = pick(input, 'on_behalf_of', 'onBehalfOf');
@@ -94,8 +102,8 @@ export function createActor(db, input = {}) {
 
     db.exec('BEGIN');
     try {
-      db.prepare(`INSERT INTO actors (actor_id, type, display_name, status, created_at, created_by)
-        VALUES (?, ?, ?, 'active', ?, ?)`).run(actorId, type, displayName, now, createdBy ?? ownerId);
+      db.prepare(`INSERT INTO actors (actor_id, type, display_name, status, is_admin, created_at, created_by)
+        VALUES (?, ?, ?, 'active', 0, ?, ?)`).run(actorId, type, displayName, now, createdBy ?? ownerId);
       appendDefinitionEvent(db, {
         object_type: 'actor', object_id: actorId, event_type: 'actor.created',
         actor: createdBy ?? ownerId, reason: `创建 Agent：${displayName}`,
@@ -117,16 +125,39 @@ export function createActor(db, input = {}) {
     return getActor(db, actorId);
   }
 
-  db.prepare(`INSERT INTO actors (actor_id, type, display_name, status, created_at, created_by)
-    VALUES (?, ?, ?, 'active', ?, ?)`).run(actorId, type, displayName, now, createdBy);
+  db.prepare(`INSERT INTO actors (actor_id, type, display_name, status, is_admin, created_at, created_by)
+    VALUES (?, ?, ?, 'active', ?, ?, ?)`).run(actorId, type, displayName, isAdmin, now, createdBy);
   appendDefinitionEvent(db, {
     object_type: 'actor', object_id: actorId, event_type: 'actor.created',
-    actor: createdBy ?? actorId, reason: `创建主体：${displayName}`, occurred_at: now,
+    actor: createdBy ?? actorId, reason: `创建主体：${displayName}`,
+    refs: isAdmin ? ['admin'] : [], occurred_at: now,
   });
   return getActor(db, actorId);
 }
 
-/** 启用/停用主体；停用后其凭据立即失效。 */
+/**
+ * 设置/取消管理员。
+ * @returns {object} 更新后的主体
+ */
+export function setActorAdmin(db, actorId, isAdmin, patch = {}) {
+  const actor = getActor(db, actorId);
+  if (!actor) throw Object.assign(new Error(`主体不存在：${actorId}`), { status: 404 });
+  if (actor.type !== 'human' && isAdmin) {
+    throw codedError('ADMIN_MUST_BE_HUMAN', '管理员必须是人类主体', 400);
+  }
+  const now = nowIso();
+  db.prepare('UPDATE actors SET is_admin = ? WHERE actor_id = ?').run(isAdmin ? 1 : 0, actorId);
+  appendDefinitionEvent(db, {
+    object_type: 'actor', object_id: actorId,
+    event_type: isAdmin ? 'actor.promoted' : 'actor.demoted',
+    actor: pick(patch, 'actor') ?? 'system',
+    reason: pick(patch, 'reason') ?? (isAdmin ? '授予管理员' : '取消管理员'),
+    occurred_at: now,
+  });
+  return getActor(db, actorId);
+}
+
+/** 启用/停用主体；停用后其凭据立即失效，并释放其进行中的认领。 */
 export function setActorStatus(db, actorId, status, patch = {}) {
   if (!ACTOR_STATUSES.includes(status)) throw new Error(`非法的主体状态：${status}`);
   const actor = getActor(db, actorId);
@@ -134,12 +165,36 @@ export function setActorStatus(db, actorId, status, patch = {}) {
   const actorName = pick(patch, 'actor') ?? 'system';
   const now = nowIso();
   db.prepare('UPDATE actors SET status = ? WHERE actor_id = ?').run(status, actorId);
+
+  let released = 0;
+  if (status === 'disabled') {
+    const active = db.prepare(`SELECT claim_id FROM claims
+      WHERE status = 'active' AND (actor_id = ? OR worker_id = ?)`).all(actorId, actorId);
+    for (const row of active) {
+      // 逐个释放：复用 claims 模块的事务与事件语义，保持任务回到 open。
+      releaseClaim(db, row.claim_id, actorId, { reason: '主体被停用' });
+      released += 1;
+    }
+  }
+
   appendDefinitionEvent(db, {
     object_type: 'actor', object_id: actorId,
     event_type: status === 'disabled' ? 'actor.disabled' : 'actor.enabled',
-    actor: actorName, reason: pick(patch, 'reason') ?? `主体状态改为 ${status}`, occurred_at: now,
+    actor: actorName,
+    reason: pick(patch, 'reason') ?? `主体状态改为 ${status}`,
+    refs: released ? [`released_claims:${released}`] : [],
+    occurred_at: now,
   });
-  return getActor(db, actorId);
+  return { ...getActor(db, actorId), released_claims: released };
+}
+
+/** 列出某主体的凭据（不含哈希）。 */
+export function listCredentials(db, actorId) {
+  const actor = getActor(db, actorId);
+  if (!actor) throw Object.assign(new Error(`主体不存在：${actorId}`), { status: 404 });
+  const rows = db.prepare(`SELECT credential_id, actor_id, label, expires_at, revoked_at, last_used_at, created_at
+    FROM actor_credentials WHERE actor_id = ? ORDER BY created_at DESC`).all(actorId);
+  return rows;
 }
 
 // ------------------------------------------------------------------ 凭据

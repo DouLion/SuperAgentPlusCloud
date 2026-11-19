@@ -131,6 +131,10 @@ export const api = {
   createActor: (input) => request('POST', '/actors', input),
   getActor: (id) => request('GET', `/actors/${encodeURIComponent(id)}`),
   disableActor: (id, input) => request('POST', `/actors/${encodeURIComponent(id)}/disable`, input),
+  enableActor: (id, input) => request('POST', `/actors/${encodeURIComponent(id)}/enable`, input),
+  promoteActor: (id, input) => request('POST', `/actors/${encodeURIComponent(id)}/promote`, input),
+  demoteActor: (id, input) => request('POST', `/actors/${encodeURIComponent(id)}/demote`, input),
+  listCredentials: (id) => request('GET', `/actors/${encodeURIComponent(id)}/credentials`),
   issueCredential: (id, input) =>
     request('POST', `/actors/${encodeURIComponent(id)}/credentials`, input),
   revokeCredential: (id, input) =>
@@ -142,6 +146,9 @@ export const api = {
   listCapabilities: (id) => request('GET', `/actors/${encodeURIComponent(id)}/capabilities`),
   setCapability: (id, input) =>
     request('POST', `/actors/${encodeURIComponent(id)}/capabilities`, input),
+  listMembers: (projectId) => request('GET', `/projects/${encodeURIComponent(projectId)}/members`),
+  addMember: (projectId, input) =>
+    request('POST', `/projects/${encodeURIComponent(projectId)}/members`, input),
 
   // 观测（P5）
   observabilityActors: () => request('GET', '/observability/actors'),

@@ -209,14 +209,22 @@ test('项目成员：角色白名单与幂等更新', () => {
   assert.throws(() => addMember(db, project.project_id, { actor_id: human.actor_id, roles: ['admin'] }), /非法的项目角色/);
 });
 
-test('HTTP：引导期可创建首位主体，之后需要人类 token', async () => {
+test('HTTP：引导期可创建首位主体，之后仅管理员可管理身份', async () => {
   // 已存在主体，无 token 创建应被拒绝。
   const denied = await post('/actors', { type: 'human', display_name: '未授权' });
   assert.equal(denied.status, 403);
   assert.equal((await denied.json()).code, 'HUMAN_ACTION_REQUIRED');
 
-  const human = createActor(db, { type: 'human', display_name: `管理员-${Date.now()}` });
-  const token = issueCredential(db, human.actor_id, {}).token;
+  // 非管理员人类：带 token 也不行。
+  const plain = createActor(db, { type: 'human', display_name: `普通成员-${Date.now()}`, is_admin: false });
+  const plainToken = issueCredential(db, plain.actor_id, {}).token;
+  const notAdmin = await post('/actors', { type: 'service', display_name: '非管理员创建' }, plainToken);
+  assert.equal(notAdmin.status, 403);
+  assert.equal((await notAdmin.json()).code, 'ADMIN_REQUIRED');
+
+  // 管理员人类：可以创建主体。
+  const admin = createActor(db, { type: 'human', display_name: `管理员-${Date.now()}`, is_admin: true });
+  const token = issueCredential(db, admin.actor_id, {}).token;
   const created = await post('/actors', { type: 'service', display_name: 'CI 回调' }, token);
   assert.equal(created.status, 201);
   assert.equal((await created.json()).type, 'service');

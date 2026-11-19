@@ -63,6 +63,14 @@ function validate(values) {
       throw invalid('INVALID_TIMEOUT', '模型超时时间必须是正数');
     }
   }
+
+  const security = values.security || {};
+  if (security.auth_mode !== undefined && !['optional', 'required'].includes(security.auth_mode)) {
+    throw invalid('INVALID_AUTH_MODE', 'auth_mode 只能是 optional 或 required');
+  }
+  if (security.role_enforcement !== undefined && !['off', 'on'].includes(security.role_enforcement)) {
+    throw invalid('INVALID_ROLE_ENFORCEMENT', 'role_enforcement 只能是 off 或 on');
+  }
 }
 
 /** 把解析后的配置整理为对外状态（不含密钥明文）。 */
@@ -81,6 +89,10 @@ function toStatus(resolved) {
       configured: Boolean(llm.base_url && llm.api_key),
       model: llm.model,
       base_url: llm.base_url,
+    },
+    security: {
+      auth_mode: resolved.security.auth_mode,
+      role_enforcement: resolved.security.role_enforcement,
     },
     needs_restart: [],
   };

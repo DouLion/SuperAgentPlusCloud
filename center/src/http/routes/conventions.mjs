@@ -8,7 +8,7 @@ import {
   listConventionPacks,
   retireConventionPack,
 } from '../../db/conventions.mjs';
-import { assertCan, stampActorType } from '../../auth/policy.mjs';
+import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
 function requirePack(db, id) {
   const pack = getConventionPack(db, id);
@@ -35,6 +35,7 @@ export const ROUTES = [
       const pack = getConventionPack(db, params.id);
       if (!pack) return { status: 404, body: { error: `约定包不存在：${params.id}` } };
       const auth = assertCan(db, req, 'convention_pack.activate', { project_id: pack.project_id });
+      assertProjectRole(db, auth, 'convention_pack.activate', { project_id: pack.project_id });
       const payload = { ...body };
       if (!payload.activated_by && !payload.activatedBy && auth.actor) {
         payload.activated_by = auth.actor.display_name;

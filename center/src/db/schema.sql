@@ -396,6 +396,7 @@ CREATE TABLE IF NOT EXISTS actors (
   type         TEXT NOT NULL CHECK (type IN ('human', 'agent', 'service')),
   display_name TEXT NOT NULL,
   status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+  is_admin     INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL,
   created_by   TEXT
 );
@@ -490,9 +491,8 @@ CREATE TABLE IF NOT EXISTS actor_capabilities (
 CREATE INDEX IF NOT EXISTS idx_capabilities_key ON actor_capabilities (key);
 
 
-
--- ²ÄÁÏÓëÌáÈ¡£¨C Ö¦£©----------------------------------------------------------
--- ²ÄÁÏ±£ÁôÔ­ÎÄ£¬²»ÓÃÕªÒªÌæ´ú£»ÌáÈ¡½á¹ûÒ»ÂÉ draft£¬ÈË²ÉÄÉºó²ÅÉú³ÉÕıÊ½¶ÔÏó¡£
+-- ææ–™ä¸æå–ï¼ˆC æï¼‰----------------------------------------------------------
+-- ææ–™ä¿ç•™åŸæ–‡ï¼›æå–åªäº§å‡º draftï¼Œäººé‡‡çº³åæ‰å˜æˆæ­£å¼éœ€æ±‚æˆ–çº¦å®šã€‚
 CREATE TABLE IF NOT EXISTS materials (
   material_id TEXT PRIMARY KEY,
   project_id  TEXT NOT NULL REFERENCES projects (project_id),
@@ -523,3 +523,5 @@ CREATE TABLE IF NOT EXISTS material_extractions (
 
 CREATE INDEX IF NOT EXISTS idx_extractions_material ON material_extractions (material_id);
 CREATE INDEX IF NOT EXISTS idx_extractions_kind_status ON material_extractions (kind, status);
+
+

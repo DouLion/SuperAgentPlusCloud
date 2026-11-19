@@ -12,7 +12,7 @@ import {
   listTrunkChanges,
   updateImpactItem,
 } from '../../db/changes.mjs';
-import { assertCan, stampActorType } from '../../auth/policy.mjs';
+import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
 export const ROUTES = [
   {
@@ -52,6 +52,7 @@ export const ROUTES = [
         return { status: 404, body: { ok: false, error: `主干变更不存在：${params.id}` } };
       }
       const auth = assertCan(db, req, 'trunk_change.confirm', { project_id: change.project_id });
+      assertProjectRole(db, auth, 'trunk_change.confirm', { project_id: change.project_id });
       const payload = { ...body };
       if (!payload.confirmed_by && !payload.confirmedBy && auth.actor) {
         payload.confirmed_by = auth.actor.display_name;
@@ -70,6 +71,7 @@ export const ROUTES = [
         return { status: 404, body: { ok: false, error: `主干变更不存在：${params.id}` } };
       }
       const auth = assertCan(db, req, 'trunk_change.activate', { project_id: change.project_id });
+      assertProjectRole(db, auth, 'trunk_change.activate', { project_id: change.project_id });
       const payload = { ...body };
       if (!payload.confirmed_by && !payload.confirmedBy && auth.actor) {
         payload.confirmed_by = auth.actor.display_name;
@@ -120,7 +122,8 @@ export const ROUTES = [
       const status = body?.assessment_status ?? body?.assessmentStatus;
       if (status === 'not_affected') {
         const change = getTrunkChange(db, impact.change_id);
-        assertCan(db, req, 'impact_item.resolve', { project_id: change?.project_id });
+        const auth = assertCan(db, req, 'impact_item.resolve', { project_id: change?.project_id });
+        assertProjectRole(db, auth, 'impact_item.resolve', { project_id: change?.project_id });
       }
       return { status: 200, body: updateImpactItem(db, params.id, body) };
     },

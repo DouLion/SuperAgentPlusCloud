@@ -2,7 +2,7 @@
 
 import { createReview, getSubmission, listReviews } from '../../db/submissions.mjs';
 import { getTask } from '../../db/tasks.mjs';
-import { assertCan, stampActorType } from '../../auth/policy.mjs';
+import { assertCan, assertProjectRole, stampActorType } from '../../auth/policy.mjs';
 
 export const ROUTES = [
   {
@@ -26,6 +26,7 @@ export const ROUTES = [
       }
       const task = getTask(db, submission.task_id);
       const auth = assertCan(db, req, 'review.record', { project_id: task?.project_id });
+      assertProjectRole(db, auth, 'review.record', { project_id: task?.project_id });
       const payload = { ...body, submission_id: params.id };
       if (!payload.reviewer_id && !payload.reviewerId && auth.actor) {
         payload.reviewer_id = auth.actor.display_name;
